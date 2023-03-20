@@ -1,0 +1,3 @@
+[submodule "ShokoServer"]
+	path = ShokoServer
+	url = git@github.com:ShokoAnime/ShokoServer.git

@@ -1,0 +1,25 @@
+{
+	// Use IntelliSense to learn about possible attributes.
+	// Hover to view descriptions of existing attributes.
+	// For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": ".NET Core - Build and Attach",
+			"type": "coreclr",
+			"request": "attach",
+			"internalConsoleOptions": "openOnSessionStart",
+			"preLaunchTask": "launchShokoServer",
+			"processName": "ShokoServer.exe",
+			"justMyCode": false
+		},
+		{
+			"name": ".NET Core - Attach",
+			"type": "coreclr",
+			"request": "attach",
+			"internalConsoleOptions": "openOnSessionStart",
+			"processName": "ShokoServer.exe",
+			"justMyCode": false
+		}
+	]
+}

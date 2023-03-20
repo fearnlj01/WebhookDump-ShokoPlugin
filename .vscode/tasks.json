@@ -1,0 +1,53 @@
+{
+	// See https://go.microsoft.com/fwlink/?LinkId=733558
+	// for the documentation about the tasks.json format
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "build",
+			"command": "dotnet",
+			"type": "shell",
+			"args": [
+				"build",
+				"-c",
+				"Release",
+				"${workspaceFolder}/Plugin/WebhookDump.csproj",
+				// Ask dotnet build to generate full paths for file names.
+				"/property:GenerateFullPaths=true",
+				// Do not generate summary otherwise it leads to duplicate errors in Problems panel
+				"/consoleloggerparameters:NoSummary"
+			],
+			"group": "build",
+			"presentation": {
+				"reveal": "silent"
+			},
+			"problemMatcher": "$msCompile"
+		},
+		{
+			"label": "launchShokoServer",
+			"type": "shell",
+			"dependsOn": ["build-and-copy"],
+			"command": "C:/'Program Files (x86)'/Shoko/'Shoko Server'/ShokoServer.exe",
+			"presentation": {
+				"reveal": "never"
+			}
+		},
+		{
+			"label": "build-and-copy",
+			"type": "shell",
+			"command": "cp",
+			"dependsOn": ["build"],
+			"args": [
+				"${config:buildOutput}/WebhookDump.dll",
+				"${config:shokoPluginOutput}"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"presentation": {
+				"reveal": "silent"
+			},
+		}
+	]
+}
