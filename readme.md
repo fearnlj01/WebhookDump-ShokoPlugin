@@ -1,7 +1,7 @@
 # What is this?
 Badly made, hacked together and published to GitHub far too soon...
 
-Unfortunately, this is functional so there is some utility left in it... The features this [Shoko](https://shokoanime.com/) plugin offers are outlined as below:
+Unfortunately, it's also functional so there is some utility in this... The features this [Shoko](https://shokoanime.com/) plugin offers are outlined as below:
 - Automatically AVDumps a file the first time it is not matched against AniDB by Shoko
 - Sends an embed to Discord via a webhook, with easy access to the ED2K for the unrecognised file and a link to the (currently unstable) WebUI's unrecognised utilities page
 
