@@ -3,7 +3,6 @@ using Shoko.Plugin.Abstractions;
 using Shoko.Plugin.Abstractions.DataModels;
 using Shoko.Plugin.WebhookDump.Models;
 using System;
-using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -26,7 +25,7 @@ namespace Shoko.Plugin.WebhookDump
 
 		private static readonly string DiscordShokoUrl = Environment.GetEnvironmentVariable("SHOKO_DISCORD_WEBHOOK_SHOKO_URL");
 
-		private static readonly string ServerPort = Environment.GetEnvironmentVariable("SHOKO_DISCORD_WEBHOOK_SHOKO_PORT") ?? 8111;
+		private static readonly string ServerPort = Environment.GetEnvironmentVariable("SHOKO_DISCORD_WEBHOOK_SHOKO_PORT") ?? "8111";
 
 		private static readonly string ApiKey = Environment.GetEnvironmentVariable("SHOKO_DISCORD_WEBHOOK_APIKEY");
 
@@ -41,6 +40,9 @@ namespace Shoko.Plugin.WebhookDump
 
 		public void Load()
 		{
+			var settingsProvider = new Settings.CustomSettingsProvider();
+			var settings = settingsProvider.GetSettings();
+			Logger.Info("Custom settings:| {settings}", settings);
 		}
 
 		private async void OnFileNotMatched(object sender, FileNotMatchedEventArgs fileNotMatchedEvent)
