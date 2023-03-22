@@ -44,7 +44,7 @@ namespace Shoko.Plugin.WebhookDump
 		private async void OnFileNotMatched(object sender, FileNotMatchedEventArgs fileNotMatchedEvent)
 		{
 			var fileInfo = fileNotMatchedEvent.FileInfo;
-			if (fileNotMatchedEvent.AutoMatchAttempts >= 1 && IsProbablyAnime(fileInfo))
+			if (fileNotMatchedEvent.AutoMatchAttempts == 1 && IsProbablyAnime(fileInfo))
 			{
 				var result = await DumpFile(fileInfo);
 				if (WebhookUrl != null)
