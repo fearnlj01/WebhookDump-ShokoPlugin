@@ -1,4 +1,4 @@
 {
 	"shokoPluginOutput": "${env:ProgramFiles(x86)}/Shoko/Shoko Server/plugins",
-	"buildOutput": "${workspaceFolder}/Plugin/bin/Release/net6.0/"
+	"buildOutput": "${workspaceFolder}/bin/Release/net6.0/"
 }

@@ -8,17 +8,21 @@
     <EnableNETAnalyzers>True</EnableNETAnalyzers>
     <AnalysisLevel>6.0-recommended</AnalysisLevel>
     <EnforceCodeStyleInBuild>True</EnforceCodeStyleInBuild>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <GenerateAssemblyTitleAttribute>false</GenerateAssemblyTitleAttribute>
+    <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+    <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="NLog" Version="5.1.2" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="../ShokoServer/Shoko.Server/Shoko.Server.csproj" />
+    <PackageReference Include="NLog" Version="5.1.2">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Shoko.Plugin.Abstractions" Version="2.4.0">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
   </ItemGroup>
 
 </Project>
