@@ -15,10 +15,11 @@
 
   <ItemGroup>
     <PackageReference Include="NLog" Version="5.1.2" />
+    <PackageReference Include="Shoko.Plugin.Abstractions" Version="2.4.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../ShokoServer/Shoko.Server/Shoko.Server.csproj" />
+    <!-- <ProjectReference Include="../ShokoServer/Shoko.Server/Shoko.Server.csproj" /> -->
   </ItemGroup>
 
 </Project>
