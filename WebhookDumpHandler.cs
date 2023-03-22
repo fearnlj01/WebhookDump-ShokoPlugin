@@ -26,6 +26,8 @@ namespace Shoko.Plugin.WebhookDump
 
 		private static readonly string DiscordShokoUrl = Environment.GetEnvironmentVariable("SHOKO_DISCORD_WEBHOOK_SHOKO_URL");
 
+		private static readonly string ServerPort = Environment.GetEnvironmentVariable("SHOKO_DISCORD_WEBHOOK_SHOKO_PORT") ?? 8111;
+
 		private static readonly string ApiKey = Environment.GetEnvironmentVariable("SHOKO_DISCORD_WEBHOOK_APIKEY");
 
 		public WebhookDumpHandler(IShokoEventHandler eventHandler)
@@ -97,7 +99,7 @@ namespace Shoko.Plugin.WebhookDump
 
 		private static async Task<AVDumpResult> DumpFile(IVideoFile file)
 		{
-			HttpRequestMessage request = new(HttpMethod.Post, $"http://127.0.0.1:8111/api/v3/File/{file.VideoFileID}/AVDump")
+			HttpRequestMessage request = new(HttpMethod.Post, $"http://localhost:{ServerPort}/api/v3/File/{file.VideoFileID}/AVDump")
 			{
 				Headers = {
 					{"accept", "*/*"},
