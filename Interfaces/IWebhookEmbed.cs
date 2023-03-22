@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace Shoko.Plugin.WebhookDump.Models;
 
 public interface IWebhookEmbed
@@ -8,5 +6,5 @@ public interface IWebhookEmbed
 	string Description { get; set; }
 	string Url { get; set; }
 	int Color { get; set; }
-	List<IWebhookField> Fields { get; set; }
+	WebhookField[] Fields { get; set; }
 }

@@ -54,8 +54,8 @@ namespace Shoko.Plugin.WebhookDump
 					{
 						Content = new StringContent(json, Encoding.UTF8, "application/json")
 					};
-					try 
-					{				
+					try
+					{
 						var response = await httpClient.SendAsync(request);
 
 						response.EnsureSuccessStatusCode();
@@ -75,7 +75,7 @@ namespace Shoko.Plugin.WebhookDump
 				Username = "Shoko",
 				AvatarUrl = AvatarUrl,
 				Content = null,
-				Embeds = new List<IWebhookEmbed>
+				Embeds = new WebhookEmbed[]
 				{
 					new WebhookEmbed
 					{
@@ -83,10 +83,9 @@ namespace Shoko.Plugin.WebhookDump
 						Description = "The above file has been found by Shoko Server but could not be matched against AniDB. The file has now been dumped with AVDump, result as below.",
 						Url = DiscordShokoUrl + "/webui/utilities/unrecognized/files",
 						Color = 0x3B82F6,
-						Fields = new List<IWebhookField>
+						Fields = new WebhookField[]
 						{
-							new WebhookField
-							{
+							new WebhookField() {
 								Name = "ED2K:",
 								Value = result.Ed2k
 							}
@@ -98,7 +97,7 @@ namespace Shoko.Plugin.WebhookDump
 
 		private static async Task<AVDumpResult> DumpFile(IVideoFile file)
 		{
-			HttpRequestMessage request = new(HttpMethod.Post, $"http://127.0.0.1:8111/api/v3/{file.VideoFileID}/AVDump")
+			HttpRequestMessage request = new(HttpMethod.Post, $"http://127.0.0.1:8111/api/v3/File/{file.VideoFileID}/AVDump")
 			{
 				Headers = {
 					{"accept", "*/*"},
@@ -109,11 +108,9 @@ namespace Shoko.Plugin.WebhookDump
 			try
 			{
 				var response = await httpClient.SendAsync(request);
-				// WHY ARE YOU 404-ING????
 				response.EnsureSuccessStatusCode();
 
 				var content = await response.Content.ReadAsStringAsync();
-				Logger.Info("content. {status}",response.StatusCode);
 				return JsonSerializer.Deserialize<AVDumpResult>(content);
 			}
 			catch (HttpRequestException e)
