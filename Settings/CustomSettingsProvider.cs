@@ -8,7 +8,7 @@ using System.Text.Json;
 
 namespace Shoko.Plugin.WebhookDump.Settings;
 
-public class CustomSettingsProvider
+public class CustomSettingsProvider : ICustomSettingsProvider
 {
 	private static readonly Logger _logger = LogManager.GetCurrentClassLogger();
 	private readonly string _filePath = Path.Combine(ApplicationPath, "WebhookDump.json");

@@ -1,4 +1,4 @@
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using NLog;
 using Shoko.Plugin.Abstractions;
 using Shoko.Plugin.Abstractions.DataModels;
@@ -39,13 +39,14 @@ namespace Shoko.Plugin.WebhookDump
 
 		public static void ConfigureServices(IServiceCollection services)
 		{
-			services.AddSingleton<CustomSettingsProvider>();
-			services.AddScoped<IPlugin, WebhookDump>();
+			services.AddSingleton<ICustomSettingsProvider, CustomSettingsProvider>();
+			services.AddScoped<ICustomSettings, CustomSettings>();
 		}
-		public WebhookDump(IShokoEventHandler eventHandler, CustomSettingsProvider settingsProvider)
+
+		public WebhookDump(IShokoEventHandler eventHandler, ICustomSettingsProvider settingsProvider)
 		{
 			eventHandler.FileNotMatched += OnFileNotMatched;
-			_settingsProvider = settingsProvider;
+			_settingsProvider = (CustomSettingsProvider)settingsProvider;
 			_settings = _settingsProvider.GetSettings();
 		}
 
@@ -55,8 +56,9 @@ namespace Shoko.Plugin.WebhookDump
 
 		public void Load()
 		{
-			var settingsProvider = new Settings.CustomSettingsProvider();
+			var settingsProvider = new CustomSettingsProvider();
 			var settings = settingsProvider.GetSettings();
+			_logger.Info($"Loaded (custom) settings without a string representation: {settings}");
 		}
 
 		private async void OnFileNotMatched(object sender, FileNotMatchedEventArgs fileNotMatchedEvent)
