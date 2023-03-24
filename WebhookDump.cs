@@ -56,9 +56,7 @@ namespace Shoko.Plugin.WebhookDump
 
 		public void Load()
 		{
-			var settingsProvider = new CustomSettingsProvider();
-			var settings = settingsProvider.GetSettings();
-			_logger.Info($"Loaded (custom) settings without a string representation: {settings}");
+			_logger.Info($"Loaded (custom) settings without a string representation: {_settings}");
 		}
 
 		private async void OnFileNotMatched(object sender, FileNotMatchedEventArgs fileNotMatchedEvent)
