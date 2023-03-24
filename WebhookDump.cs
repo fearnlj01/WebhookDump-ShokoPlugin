@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using NLog;
 using Shoko.Plugin.Abstractions;
 using Shoko.Plugin.Abstractions.DataModels;
@@ -67,7 +67,11 @@ namespace Shoko.Plugin.WebhookDump
 				var result = await DumpFile(fileInfo);
 				if (WebhookUrl != null)
 				{
-					var json = JsonSerializer.Serialize(GetWebhook(fileInfo, result));
+					JsonSerializerOptions options = new()
+					{
+						PropertyNamingPolicy = new WebhookNamingPolicy()
+					};
+					var json = JsonSerializer.Serialize(GetWebhook(fileInfo, result), options);
 					HttpRequestMessage request = new(HttpMethod.Post, WebhookUrl)
 					{
 						Content = new StringContent(json, Encoding.UTF8, "application/json")

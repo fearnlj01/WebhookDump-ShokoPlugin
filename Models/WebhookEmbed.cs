@@ -4,9 +4,9 @@ namespace Shoko.Plugin.WebhookDump.Models;
 
 public class WebhookEmbed : IWebhookEmbed
 {
-	[JsonPropertyName("title")]	public string Title { get; set; }
-	[JsonPropertyName("description")]	public string Description { get; set; }
-	[JsonPropertyName("url")]	public string Url { get; set; }
-	[JsonPropertyName("color")]	public int Color { get; set; }
-	[JsonPropertyName("fields")]	public WebhookField[] Fields { get; set; }
+	public string Title { get; set; }
+	public string Description { get; set; }
+	public string Url { get; set; }
+	public int Color { get; set; }
+	public WebhookField[] Fields { get; set; }
 }
