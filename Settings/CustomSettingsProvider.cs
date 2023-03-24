@@ -10,11 +10,10 @@ namespace Shoko.Plugin.WebhookDump.Settings;
 
 public class CustomSettingsProvider
 {
-	private readonly string _filePath = Path.Combine(ApplicationPath, "WebhookDump.json");
-
-	private readonly object _settingsLock = new();
-
 	private static readonly Logger _logger = LogManager.GetCurrentClassLogger();
+	private readonly string _filePath = Path.Combine(ApplicationPath, "WebhookDump.json");
+	private readonly object _settingsLock = new();
+	private CustomSettings _settings;
 
 	private readonly static JsonSerializerOptions options = new()
 	{
@@ -24,22 +23,9 @@ public class CustomSettingsProvider
 
 	public CustomSettings GetSettings()
 	{
-		CustomSettings settings = null;
+		_settings ??= GetSettingsFromFile();
 
-		try
-		{
-			using FileStream stream = new(_filePath, FileMode.Open);
-			settings = JsonSerializer.Deserialize<CustomSettings>(stream, options);
-		}
-		catch (FileNotFoundException)
-		{
-			settings = new CustomSettings();
-			SaveSettings(settings);
-		}
-
-		ValidateSettings(settings);
-
-		return settings;
+		return _settings;
 	}
 
 	public void SaveSettings(CustomSettings settings)
@@ -79,6 +65,25 @@ public class CustomSettingsProvider
 			_logger.Error($"Error in settings validation - Error Messages: '{errString}'");
 			throw new ArgumentException(errString);
 		}
+	}
+
+	private CustomSettings GetSettingsFromFile()
+	{
+		CustomSettings settings = null;
+		try
+		{
+			using FileStream stream = new(_filePath, FileMode.Open);
+			settings = JsonSerializer.Deserialize<CustomSettings>(stream, options);
+		}
+		catch (FileNotFoundException)
+		{
+			settings = new CustomSettings();
+			SaveSettings(settings);
+		}
+
+		ValidateSettings(settings);
+
+		return settings;
 	}
 
 	#region `ShokoServer/Shoko.Server/Utilities/Utils.cs`
