@@ -3,85 +3,85 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.IO;
-using System.Text.Json;
 using System.Reflection;
+using System.Text.Json;
 
 namespace Shoko.Plugin.WebhookDump.Settings;
 
-public class CustomSettingsProvider : ICustomSettingsProvider
+public class CustomSettingsProvider
 {
-	private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-	private static readonly object SettingsLock = new();
-	private const string SettingsFilename = "WebhookDump.json";
-	private readonly string SettingsPath = Path.Combine(ApplicationPath, SettingsFilename);
-	private static ICustomSettings Instance { get; set; }
+	private readonly string _filePath = Path.Combine(ApplicationPath, "WebhookDump.json");
 
-	public CustomSettingsProvider()
+	private readonly object _settingsLock = new();
+
+	private static readonly Logger _logger = LogManager.GetCurrentClassLogger();
+
+	private readonly static JsonSerializerOptions options = new()
 	{
-		LoadSettings();
-	}
+		AllowTrailingCommas = true,
+		WriteIndented = true
+	};
 
-	public ICustomSettings GetSettings()
+	public CustomSettings GetSettings()
 	{
-		if (Instance == null) LoadSettings();
-		return Instance;
-	}
+		CustomSettings settings = null;
 
-	public void SaveSettings(ICustomSettings settings)
-	{
-		Instance = settings;
-		SaveSettings();
-	}
-
-	public void SaveSettings()
-	{
-		var context = new ValidationContext(Instance, null, null);
-		var results = new List<ValidationResult>();
-
-		if (!Validator.TryValidateObject(Instance, context, results))
-		{
-				results.ForEach(s => Logger.Error(s.ErrorMessage));
-				throw new ValidationException();
-		}
-
-		lock (SettingsLock)
-		{
-			var settingsStored = File.Exists(SettingsPath) ? File.ReadAllText(SettingsPath) : string.Empty;
-			var settingsMemory = JsonSerializer.Serialize(Instance);
-
-			if (!settingsStored.Equals(settingsMemory, StringComparison.Ordinal))
-			{
-				File.WriteAllText(SettingsPath, settingsMemory);
-			}
-		}
-	}
-
-	private void LoadSettings()
-	{
-		if (!File.Exists(SettingsPath))
-		{
-			Instance = new CustomSettings();
-			SaveSettings();
-			return;
-		}
-
-		LoadSettingsFromFile(SettingsPath);
-		SaveSettings();
-	}
-
-	private static void LoadSettingsFromFile(string path)
-	{
 		try
 		{
-			Instance = JsonSerializer.Deserialize<CustomSettings>(File.ReadAllText(path));
+			using FileStream stream = new(_filePath, FileMode.Open);
+			settings = JsonSerializer.Deserialize<CustomSettings>(stream, options);
 		}
-		catch (Exception e)
+		catch (FileNotFoundException)
 		{
-			Logger.Error("Couldn't load plugin settings from file!", e);
+			settings = new CustomSettings();
+			SaveSettings(settings);
+		}
+
+		ValidateSettings(settings);
+
+		return settings;
+	}
+
+	public void SaveSettings(CustomSettings settings)
+	{
+		ValidateSettings(settings);
+
+		var json = JsonSerializer.Serialize(settings, options);
+
+		lock (_settingsLock)
+		{
+			using FileStream stream = new(_filePath, FileMode.Create);
+			using StreamWriter writer = new(stream);
+			writer.Write(json);
 		}
 	}
 
-	#region `ShokoServer/Shoko.Server/Utilities/Utils.cs` - no way of accessing via API :(
+	private static void ValidateSettings(CustomSettings settings)
+	{
+		var validationResults = new List<ValidationResult>();
+		var validationContext = new ValidationContext(settings);
+
+		bool isValid = Validator.TryValidateObject(
+			settings, validationContext, validationResults, true);
+
+		if (!isValid)
+		{
+			var errorMessages = new List<string>();
+			foreach (var validationResult in validationResults)
+			{
+				errorMessages.Add(validationResult.ErrorMessage);
+				foreach (var memberName in validationResult.MemberNames)
+				{
+					_logger.Error($"Error in settings validation: ${memberName}");
+				}
+			}
+			var errString = string.Join(Environment.NewLine, errorMessages);
+			_logger.Error($"Error in settings validation - Error Messages: '{errString}'");
+			throw new ArgumentException(errString);
+		}
+	}
+
+	#region `ShokoServer/Shoko.Server/Utilities/Utils.cs`
 	private static bool IsLinux
 	{
 		get
