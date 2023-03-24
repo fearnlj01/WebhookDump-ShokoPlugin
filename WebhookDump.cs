@@ -1,7 +1,9 @@
-﻿using NLog;
+﻿using Microsoft.Extensions.DependencyInjection;
+using NLog;
 using Shoko.Plugin.Abstractions;
 using Shoko.Plugin.Abstractions.DataModels;
 using Shoko.Plugin.WebhookDump.Models;
+using Shoko.Plugin.WebhookDump.Settings;
 using System;
 using System.Net.Http;
 using System.Text;
@@ -11,14 +13,19 @@ using System.Threading.Tasks;
 
 namespace Shoko.Plugin.WebhookDump
 {
-	public class WebhookDumpHandler : IPlugin
+	public class WebhookDump : IPlugin
 	{
-		private static readonly HttpClient httpClient = new();
+		private static readonly HttpClient _httpClient = new();
 
 		public string Name => "WebhookDump";
 
-		private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+		private static readonly Logger _logger = LogManager.GetCurrentClassLogger();
 
+		private readonly CustomSettingsProvider _settingsProvider;
+
+		private readonly CustomSettings _settings;
+
+		#region EnvVars
 		private static readonly string WebhookUrl = Environment.GetEnvironmentVariable("SHOKO_DISCORD_WEBHOOK_URL");
 
 		private static readonly string AvatarUrl = Environment.GetEnvironmentVariable("SHOKO_DISCORD_WEBHOOK_AVATAR_URL");
@@ -28,10 +35,18 @@ namespace Shoko.Plugin.WebhookDump
 		private static readonly string ServerPort = Environment.GetEnvironmentVariable("SHOKO_DISCORD_WEBHOOK_SHOKO_PORT") ?? "8111";
 
 		private static readonly string ApiKey = Environment.GetEnvironmentVariable("SHOKO_DISCORD_WEBHOOK_APIKEY");
+		#endregion
 
-		public WebhookDumpHandler(IShokoEventHandler eventHandler)
+		public static void ConfigureServices(IServiceCollection services)
+		{
+			services.AddSingleton<CustomSettingsProvider>();
+			services.AddScoped<IPlugin, WebhookDump>();
+		}
+		public WebhookDump(IShokoEventHandler eventHandler, CustomSettingsProvider settingsProvider)
 		{
 			eventHandler.FileNotMatched += OnFileNotMatched;
+			_settingsProvider = settingsProvider;
+			_settings = _settingsProvider.GetSettings();
 		}
 
 		public void OnSettingsLoaded(IPluginSettings settings)
@@ -42,7 +57,6 @@ namespace Shoko.Plugin.WebhookDump
 		{
 			var settingsProvider = new Settings.CustomSettingsProvider();
 			var settings = settingsProvider.GetSettings();
-			Logger.Info("Custom settings:| {settings}", settings);
 		}
 
 		private async void OnFileNotMatched(object sender, FileNotMatchedEventArgs fileNotMatchedEvent)
@@ -60,13 +74,13 @@ namespace Shoko.Plugin.WebhookDump
 					};
 					try
 					{
-						var response = await httpClient.SendAsync(request);
+						var response = await _httpClient.SendAsync(request);
 
 						response.EnsureSuccessStatusCode();
 					}
 					catch (HttpRequestException e)
 					{
-						Logger.Error("Webhook failed to send!", e);
+						_logger.Error("Webhook failed to send!", e);
 					}
 				}
 			}
@@ -111,7 +125,7 @@ namespace Shoko.Plugin.WebhookDump
 
 			try
 			{
-				var response = await httpClient.SendAsync(request);
+				var response = await _httpClient.SendAsync(request);
 				response.EnsureSuccessStatusCode();
 
 				var content = await response.Content.ReadAsStringAsync();
@@ -119,7 +133,7 @@ namespace Shoko.Plugin.WebhookDump
 			}
 			catch (HttpRequestException e)
 			{
-				Logger.Error("Error automatically AVDumping file", e);
+				_logger.Error("Error automatically AVDumping file", e);
 				throw;
 			}
 		}
