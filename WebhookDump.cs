@@ -25,18 +25,6 @@ namespace Shoko.Plugin.WebhookDump
 
 		private readonly CustomSettings _settings;
 
-		#region EnvVars
-		private static readonly string WebhookUrl = Environment.GetEnvironmentVariable("SHOKO_DISCORD_WEBHOOK_URL");
-
-		private static readonly string AvatarUrl = Environment.GetEnvironmentVariable("SHOKO_DISCORD_WEBHOOK_AVATAR_URL");
-
-		private static readonly string DiscordShokoUrl = Environment.GetEnvironmentVariable("SHOKO_DISCORD_WEBHOOK_SHOKO_URL");
-
-		private static readonly string ServerPort = Environment.GetEnvironmentVariable("SHOKO_DISCORD_WEBHOOK_SHOKO_PORT") ?? "8111";
-
-		private static readonly string ApiKey = Environment.GetEnvironmentVariable("SHOKO_DISCORD_WEBHOOK_APIKEY");
-		#endregion
-
 		public static void ConfigureServices(IServiceCollection services)
 		{
 			services.AddSingleton<ICustomSettingsProvider, CustomSettingsProvider>();
@@ -62,68 +50,44 @@ namespace Shoko.Plugin.WebhookDump
 		private async void OnFileNotMatched(object sender, FileNotMatchedEventArgs fileNotMatchedEvent)
 		{
 			var fileInfo = fileNotMatchedEvent.FileInfo;
-			if (fileNotMatchedEvent.AutoMatchAttempts == 1 && IsProbablyAnime(fileInfo))
+			if (fileNotMatchedEvent.AutoMatchAttempts != 1 || !IsProbablyAnime(fileInfo))
 			{
-				var result = await DumpFile(fileInfo);
-				if (WebhookUrl != null)
-				{
-					JsonSerializerOptions options = new()
-					{
-						PropertyNamingPolicy = new WebhookNamingPolicy()
-					};
-					var json = JsonSerializer.Serialize(GetWebhook(fileInfo, result), options);
-					HttpRequestMessage request = new(HttpMethod.Post, WebhookUrl)
-					{
-						Content = new StringContent(json, Encoding.UTF8, "application/json")
-					};
-					try
-					{
-						var response = await _httpClient.SendAsync(request);
+				return;
+			}
+			var result = await DumpFile(fileInfo);
+			
+			var url = _settings.Webhook.Url;
+			if (url == null) return;
 
-						response.EnsureSuccessStatusCode();
-					}
-					catch (HttpRequestException e)
-					{
-						_logger.Error("Webhook failed to send!", e);
-					}
-				}
+			JsonSerializerOptions options = new()
+			{
+				PropertyNamingPolicy = new WebhookNamingPolicy()
+			};
+			var json = JsonSerializer.Serialize(new Webhook(_settingsProvider, fileInfo, result), options);
+
+			try
+			{
+				HttpRequestMessage request = new(HttpMethod.Post, url)
+				{
+					Content = new StringContent(json, Encoding.UTF8, "application/json")
+				};
+				var response = await _httpClient.SendAsync(request);
+				response.EnsureSuccessStatusCode();
+			}
+			catch (HttpRequestException e)
+			{
+				_logger.Error("Webhook failed to send!", e);
 			}
 		}
 
-		private static Webhook GetWebhook(IVideoFile file, AVDumpResult result)
+		private async Task<AVDumpResult> DumpFile(IVideoFile file)
 		{
-			return new Webhook()
-			{
-				Username = "Shoko",
-				AvatarUrl = AvatarUrl,
-				Content = null,
-				Embeds = new WebhookEmbed[]
-				{
-					new WebhookEmbed
-					{
-						Title = file.Filename,
-						Description = "The above file has been found by Shoko Server but could not be matched against AniDB. The file has now been dumped with AVDump, result as below.",
-						Url = DiscordShokoUrl + "/webui/utilities/unrecognized/files",
-						Color = 0x3B82F6,
-						Fields = new WebhookField[]
-						{
-							new WebhookField() {
-								Name = "ED2K:",
-								Value = result.Ed2k
-							}
-						}
-					}
-				}
-			};
-		}
-
-		private static async Task<AVDumpResult> DumpFile(IVideoFile file)
-		{
-			HttpRequestMessage request = new(HttpMethod.Post, $"http://localhost:{ServerPort}/api/v3/File/{file.VideoFileID}/AVDump")
+			var settings = _settings.Shoko;
+			HttpRequestMessage request = new(HttpMethod.Post, $"http://localhost:{settings.ServerPort}/api/v3/File/{file.VideoFileID}/AVDump")
 			{
 				Headers = {
 					{"accept", "*/*"},
-					{"apikey", ApiKey }
+					{"apikey", settings.ApiKey }
 				}
 			};
 

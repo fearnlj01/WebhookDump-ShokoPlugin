@@ -96,7 +96,7 @@ public class CustomSettingsProvider : ICustomSettingsProvider
 		}
 	}
 
-	private static string DefaultInstance { get; set; } = Assembly.GetEntryAssembly().GetName().Name;
+	private static string DefaultInstance { get; } = Assembly.GetEntryAssembly().GetName().Name;
 
 	private static string ApplicationPath
 	{
