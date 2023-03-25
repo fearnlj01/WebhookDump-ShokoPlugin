@@ -6,5 +6,7 @@
 		"bin/**": true,
 		"LICENSE": true,
 		".gitignore": true,
+		".editorconfig": true,
+		".git-blame-ignore-revs": true
 	}
 }
