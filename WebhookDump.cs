@@ -55,7 +55,7 @@ namespace Shoko.Plugin.WebhookDump
 				return;
 			}
 			var result = await DumpFile(fileInfo);
-			
+
 			var url = _settings.Webhook.Url;
 			if (url == null) return;
 

@@ -11,6 +11,6 @@ public class WebhookField : IWebhookField
 		Value = _AVDumpResult.Ed2k;
 	}
 
-	public string Name { get; } 
+	public string Name { get; }
 	public string Value { get; }
 }
