@@ -69,11 +69,11 @@ public class CustomSettingsProvider : ICustomSettingsProvider
 
   private CustomSettings GetSettingsFromFile()
   {
-    CustomSettings settings = null;
+    CustomSettings settings;
     try
     {
-      using FileStream stream = new(_filePath, FileMode.Open);
-      settings = JsonSerializer.Deserialize<CustomSettings>(stream, options);
+      var contents = File.ReadAllText(_filePath);
+      settings = JsonSerializer.Deserialize<CustomSettings>(contents, options);
     }
     catch (FileNotFoundException)
     {
@@ -96,7 +96,7 @@ public class CustomSettingsProvider : ICustomSettingsProvider
     }
   }
 
-  private static string DefaultInstance { get; } = Assembly.GetEntryAssembly().GetName().Name;
+  private static string DefaultInstance { get; set; } = Assembly.GetEntryAssembly().GetName().Name;
 
   private static string ApplicationPath
   {
