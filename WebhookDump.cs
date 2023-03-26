@@ -1,4 +1,4 @@
-﻿using System.Net.Http;
+using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -110,7 +110,7 @@ namespace Shoko.Plugin.WebhookDump
         else
         {
           _logger.Error($"Error automatically AVDumping file | Maximum retry attempts reached", e);
-          throw;
+          return null;
         }
       }
     }

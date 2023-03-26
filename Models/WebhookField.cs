@@ -8,7 +8,7 @@ public class WebhookField : IWebhookField
     _AVDumpResult = result;
 
     Name = "ED2K:";
-    Value = _AVDumpResult.Ed2k;
+    Value = _AVDumpResult?.Ed2k;
   }
 
   public string Name { get; }
