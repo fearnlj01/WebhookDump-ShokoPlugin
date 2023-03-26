@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text;
 using Shoko.Plugin.Abstractions.DataModels;
 using Shoko.Plugin.WebhookDump.Settings;
 namespace Shoko.Plugin.WebhookDump.Models;

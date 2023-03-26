@@ -1,7 +1,6 @@
 using System.Text;
 using System.Text.Json;
 
-
 namespace Shoko.Plugin.WebhookDump;
 public class WebhookNamingPolicy : JsonNamingPolicy
 {
