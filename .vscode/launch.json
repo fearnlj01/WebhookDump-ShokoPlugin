@@ -11,7 +11,8 @@
 			"preLaunchTask": "build-and-copy",
 			"internalConsoleOptions": "openOnSessionStart",
 			"program": "C:/Program Files (x86)/Shoko/Shoko Server/ShokoServer.exe",
-			"justMyCode": false
+			"justMyCode": false,
+			"requireExactSource": false
 		},
 		{
 			"name": ".NET Core - Launch",
@@ -19,7 +20,8 @@
 			"request": "launch",
 			"internalConsoleOptions": "openOnSessionStart",
 			"program": "C:/Program Files (x86)/Shoko/Shoko Server/ShokoServer.exe",
-			"justMyCode": false
+			"justMyCode": false,
+			"requireExactSource": false
 		}
 	]
 }
