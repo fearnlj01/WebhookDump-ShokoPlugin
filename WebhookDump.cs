@@ -58,7 +58,7 @@ namespace Shoko.Plugin.WebhookDump
       var result = await DumpFile(fileInfo);
 
       var url = _settings.Webhook.Url;
-      if (url == null) return;
+      if (url == null || url == "https://discord.com/api/webhooks/{webhook.id}/{webhook.token}") return;
 
       var searchResults = await AttemptTitleMatch(fileInfo);
 
