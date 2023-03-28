@@ -1,4 +1,16 @@
 {
-	"shokoPluginOutput": "${env:ProgramFiles(x86)}/Shoko/Shoko Server/plugins",
-	"buildOutput": "${workspaceFolder}/bin/Release/net6.0/"
+  "debugReleaseToggle": "Release",
+  "shokoPluginOutput": "${env:ProgramFiles(x86)}/Shoko/Shoko Server/plugins",
+  "buildOutput": "${workspaceFolder}/bin/${config:debugReleaseToggle}/net6.0/",
+  "omnisharp.enableEditorConfigSupport": true,
+  "omnisharp.enableRoslynAnalyzers": true,
+  "files.eol": "\n",
+  "files.exclude": {
+    "obj/**": true,
+    "bin/**": true,
+    "LICENSE": true,
+    ".gitignore": true,
+    ".editorconfig": true,
+    ".git-blame-ignore-revs": true
+  }
 }

@@ -1,9 +1,23 @@
-using System.Text.Json.Serialization;
+using System.Collections.Generic;
 
 namespace Shoko.Plugin.WebhookDump.Models;
 
-public class WebhookField : IWebhookField
+public class WebhookField
 {
-	[JsonPropertyName("name")]	public string Name { get; set; }
-	[JsonPropertyName("value")]	public string Value { get; set; }
+	public IWebhookField[] Fields { get; }
+
+	public WebhookField(WebhookDumpField dumpField, WebhookTitleField[] titleFields)
+	{
+    List<IWebhookField> webhookFields = new()
+    {
+      dumpField
+    };
+    webhookFields.AddRange(titleFields);
+    Fields = webhookFields.ToArray();
+  }
+
+  public IWebhookField[] GetFields()
+  {
+    return Fields;
+  }
 }

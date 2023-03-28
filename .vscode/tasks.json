@@ -10,7 +10,7 @@
 			"args": [
 				"build",
 				"-c",
-				"Release",
+				"${config:debugReleaseToggle}",
 				"/property:GenerateFullPaths=true",
 				"/consoleloggerparameters:NoSummary"
 			],

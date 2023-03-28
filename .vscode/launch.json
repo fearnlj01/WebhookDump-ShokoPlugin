@@ -5,21 +5,23 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"name": ".NET Core - Build and Attach",
+			"name": ".NET Core - Build and Launch",
 			"type": "coreclr",
-			"request": "attach",
+			"request": "launch",
+			"preLaunchTask": "build-and-copy",
 			"internalConsoleOptions": "openOnSessionStart",
-			"preLaunchTask": "launchShokoServer",
-			"processName": "ShokoServer.exe",
-			"justMyCode": false
+			"program": "C:/Program Files (x86)/Shoko/Shoko Server/ShokoServer.exe",
+			"justMyCode": false,
+			"requireExactSource": false
 		},
 		{
-			"name": ".NET Core - Attach",
+			"name": ".NET Core - Launch",
 			"type": "coreclr",
-			"request": "attach",
+			"request": "launch",
 			"internalConsoleOptions": "openOnSessionStart",
-			"processName": "ShokoServer.exe",
-			"justMyCode": false
+			"program": "C:/Program Files (x86)/Shoko/Shoko Server/ShokoServer.exe",
+			"justMyCode": false,
+			"requireExactSource": false
 		}
 	]
 }

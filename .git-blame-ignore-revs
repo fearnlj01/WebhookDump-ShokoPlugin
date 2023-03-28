@@ -1,0 +1,5 @@
+# .git-blame-ignore-revs
+# Formatting changes (manual linting)
+1f97168106229eaf4658496e7f96543c9787c476
+# More formatting changes, introduced by .editorconfig file
+3a5aec3243960a08837918c4490584372e42df72

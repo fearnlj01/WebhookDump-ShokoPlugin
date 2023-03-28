@@ -1,11 +1,33 @@
-using System.Text.Json.Serialization;
+using Shoko.Plugin.Abstractions.DataModels;
+using Shoko.Plugin.WebhookDump.Models.AniDB;
+using Shoko.Plugin.WebhookDump.Settings;
 
 namespace Shoko.Plugin.WebhookDump.Models;
 
 public class Webhook : IWebhook
 {
-	[JsonPropertyName("content")] public string Content { get; set; }
-	[JsonPropertyName("embeds")] public WebhookEmbed[] Embeds { get; set; }
-	[JsonPropertyName("username")] public string Username { get; set; }
-	[JsonPropertyName("avatar_url")] public string AvatarUrl { get; set; }
+  private static CustomSettingsProvider _settingsProvider;
+  private static WebhookSettings _settings;
+  private static IVideoFile _videoFile;
+  private static AVDumpResult _AVDumpResult;
+  private static AniDBSearchResult _searchResult;
+
+  public Webhook(CustomSettingsProvider settingsProvider, IVideoFile file, AVDumpResult result, AniDBSearchResult searchResult)
+  {
+    _settingsProvider = settingsProvider;
+    _settings = _settingsProvider.GetSettings().Webhook;
+    _videoFile = file;
+    _AVDumpResult = result;
+    _searchResult = searchResult;
+
+    Content = _settings.MessageText;
+    Embeds = new[] { new WebhookEmbed(_settingsProvider, _videoFile, _AVDumpResult, _searchResult) };
+    Username = _settings.Username;
+    AvatarUrl = _settings.AvatarUrl;
+  }
+
+  public string Content { get; }
+  public WebhookEmbed[] Embeds { get; }
+  public string Username { get; }
+  public string AvatarUrl { get; }
 }
