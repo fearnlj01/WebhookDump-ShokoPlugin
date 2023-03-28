@@ -1,16 +1,23 @@
+using System.Collections.Generic;
+
 namespace Shoko.Plugin.WebhookDump.Models;
 
-public class WebhookField : IWebhookField
+public class WebhookField
 {
-  private static AVDumpResult _AVDumpResult;
-  public WebhookField(AVDumpResult result)
-  {
-    _AVDumpResult = result;
+	public IWebhookField[] Fields { get; }
 
-    Name = "ED2K:";
-    Value = _AVDumpResult?.Ed2k;
+	public WebhookField(WebhookDumpField dumpField, WebhookTitleField[] titleFields)
+	{
+    List<IWebhookField> webhookFields = new()
+    {
+      dumpField
+    };
+    webhookFields.AddRange(titleFields);
+    Fields = webhookFields.ToArray();
   }
 
-  public string Name { get; }
-  public string Value { get; }
+  public IWebhookField[] GetFields()
+  {
+    return Fields;
+  }
 }

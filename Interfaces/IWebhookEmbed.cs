@@ -6,5 +6,5 @@ public interface IWebhookEmbed
   string Description { get; }
   string Url { get; }
   int Color { get; }
-  WebhookField[] Fields { get; }
+  IWebhookField[] Fields { get; set; }
 }

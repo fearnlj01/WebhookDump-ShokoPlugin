@@ -3,11 +3,13 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Web;
 using Microsoft.Extensions.DependencyInjection;
 using NLog;
 using Shoko.Plugin.Abstractions;
 using Shoko.Plugin.Abstractions.DataModels;
 using Shoko.Plugin.WebhookDump.Models;
+using Shoko.Plugin.WebhookDump.Models.AniDB;
 using Shoko.Plugin.WebhookDump.Settings;
 
 namespace Shoko.Plugin.WebhookDump
@@ -58,11 +60,13 @@ namespace Shoko.Plugin.WebhookDump
       var url = _settings.Webhook.Url;
       if (url == null) return;
 
+      var searchResults = await AttemptTitleMatch(fileInfo);
+
       JsonSerializerOptions options = new()
       {
         PropertyNamingPolicy = new WebhookNamingPolicy()
       };
-      var json = JsonSerializer.Serialize(new Webhook(_settingsProvider, fileInfo, result), options);
+      var json = JsonSerializer.Serialize(new Webhook(_settingsProvider, fileInfo, result, searchResults), options);
 
       try
       {
@@ -122,6 +126,49 @@ namespace Shoko.Plugin.WebhookDump
       var regex = new Regex(@"^(\[[^]]+\]).+\.mkv$");
       return file.FileSize > 100_000_000
         && regex.IsMatch(file.Filename);
+    }
+
+    private static string GetTitleFromFilename(IVideoFile file)
+    {
+      var filename = file.Filename;
+      var regex = @"^((\[.*?\]\s*)*)(.+(?= - ))(.*)$";
+
+      Match results = Regex.Match(filename, regex);
+      if (results.Success)
+      {
+        return results.Groups[3].Value;
+      }
+      return file.Filename;
+    }
+
+    private async Task<AniDBSearchResult> AttemptTitleMatch(IVideoFile file)
+    {
+      try
+      {
+        var title = HttpUtility.UrlEncode(GetTitleFromFilename(file));
+        var settings = _settings.Shoko;
+        var uri = $"http://localhost:{settings.ServerPort}/api/v3/Series/AniDB/Search/{title}?includeTitles=false&pageSize=3&page=1";
+
+        HttpRequestMessage request = new(HttpMethod.Get, uri)
+        {
+          Headers =
+          {
+            {"accept", "*/*"},
+            {"apikey", settings.ApiKey }
+          }
+        };
+
+        var response = await _httpClient.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+
+        var responseContent = await response.Content.ReadAsStringAsync();
+        return JsonSerializer.Deserialize<AniDBSearchResult>(responseContent);
+      }
+      catch (HttpRequestException e)
+      {
+        _logger.Warn("Unable to retrieve information about file from AniDB", e);
+        return null;
+      }
     }
   }
 }
