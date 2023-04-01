@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -26,6 +27,8 @@ public class WebhookDump : IPlugin
 
   private readonly CustomSettings _settings;
 
+  private readonly HashSet<int> seenFiles = new();
+
   public static void ConfigureServices(IServiceCollection services)
   {
     services.AddSingleton<ICustomSettingsProvider, CustomSettingsProvider>();
@@ -51,35 +54,52 @@ public class WebhookDump : IPlugin
   private async void OnFileNotMatched(object sender, FileNotMatchedEventArgs fileNotMatchedEvent)
   {
     var fileInfo = fileNotMatchedEvent.FileInfo;
-    if (fileNotMatchedEvent.AutoMatchAttempts != 1 || !IsProbablyAnime(fileInfo))
+    if (!IsProbablyAnime(fileInfo))
     {
       return;
     }
-    var result = await DumpFile(fileInfo);
 
-    var url = _settings.Webhook.Url;
-    if (url == null || url == "https://discord.com/api/webhooks/{webhook.id}/{webhook.token}") return;
+    var matchAttempts = fileNotMatchedEvent.AutoMatchAttempts;
 
-    var searchResults = await AttemptTitleMatch(fileInfo);
-
-    JsonSerializerOptions options = new()
+    switch (matchAttempts)
     {
-      PropertyNamingPolicy = new WebhookNamingPolicy()
-    };
-    var json = JsonSerializer.Serialize(new Webhook(_settingsProvider, fileInfo, result, searchResults), options);
+      case 1:
+        seenFiles.Add(fileInfo.VideoFileID);
+        var dumpResult = await DumpFile(fileInfo);
 
-    try
-    {
-      HttpRequestMessage request = new(HttpMethod.Post, url)
-      {
-        Content = new StringContent(json, Encoding.UTF8, "application/json")
-      };
-      var response = await _httpClient.SendAsync(request);
-      response.EnsureSuccessStatusCode();
-    }
-    catch (HttpRequestException e)
-    {
-      _logger.Error("Webhook failed to send!", e);
+        RescanFile(fileInfo, matchAttempts);
+
+        var url = _settings.Webhook.Url;
+        if (url == null || url == "https://discord.com/api/webhooks/{webhook.id}/{webhook.token}") break;
+
+        var titleSearchResults = await AttemptTitleMatch(fileInfo);
+
+        JsonSerializerOptions options = new()
+        {
+          PropertyNamingPolicy = new WebhookNamingPolicy()
+        };
+        var json = JsonSerializer.Serialize(new Webhook(_settingsProvider, fileInfo, dumpResult, titleSearchResults), options);
+
+        try
+        {
+          HttpRequestMessage request = new(HttpMethod.Post, url)
+          {
+            Content = new StringContent(json, Encoding.UTF8, "application/json")
+          };
+          var response = await _httpClient.SendAsync(request);
+          response.EnsureSuccessStatusCode();
+        }
+        catch (HttpRequestException e)
+        {
+          _logger.Error("Webhook failed to send!", e);
+        }
+        break;
+      case <= 4:
+        if (!seenFiles.Contains(fileInfo.VideoFileID)) break;
+        await RescanFile(fileInfo, matchAttempts);
+        break;
+      default:
+        break;
     }
   }
 
@@ -168,6 +188,29 @@ public class WebhookDump : IPlugin
     {
       _logger.Warn("Unable to retrieve information about file from AniDB", e);
       return null;
+    }
+  }
+
+  private async Task RescanFile(IVideoFile file, int autoMatchAttempts)
+  {
+    await Task.Delay(autoMatchAttempts * 5 * 60 * 1000);
+
+    var settings = _settings.Shoko;
+    var uri = $"http://localhost:{settings.ServerPort}/api/v3/File{file.VideoFileID}/Rescan";
+
+    try {
+    await _httpClient.SendAsync(new HttpRequestMessage(HttpMethod.Get, uri)
+    {
+      Headers =
+      {
+        {"accept", "*/*"},
+        {"apikey", settings.ApiKey }
+      }
+    });
+    }
+    catch (HttpRequestException)
+    {
+      // replaceme: logging
     }
   }
 }
