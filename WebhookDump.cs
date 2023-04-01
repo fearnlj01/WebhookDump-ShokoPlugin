@@ -67,7 +67,7 @@ public class WebhookDump : IPlugin
         seenFiles.Add(fileInfo.VideoFileID);
         var dumpResult = await DumpFile(fileInfo);
 
-        RescanFile(fileInfo, matchAttempts);
+        _ = RescanFile(fileInfo, matchAttempts).ConfigureAwait(false);
 
         var url = _settings.Webhook.Url;
         if (url == null || url == "https://discord.com/api/webhooks/{webhook.id}/{webhook.token}") break;
