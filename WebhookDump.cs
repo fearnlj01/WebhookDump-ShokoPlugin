@@ -54,10 +54,7 @@ public class WebhookDump : IPlugin
   private async void OnFileNotMatched(object sender, FileNotMatchedEventArgs fileNotMatchedEvent)
   {
     var fileInfo = fileNotMatchedEvent.FileInfo;
-    if (!IsProbablyAnime(fileInfo))
-    {
-      return;
-    }
+    if (!IsProbablyAnime(fileInfo)) return;
 
     var matchAttempts = fileNotMatchedEvent.AutoMatchAttempts;
 
@@ -67,7 +64,7 @@ public class WebhookDump : IPlugin
         seenFiles.Add(fileInfo.VideoFileID);
         var dumpResult = await DumpFile(fileInfo);
 
-        _ = RescanFile(fileInfo, matchAttempts).ConfigureAwait(false);
+        _ = Task.Run(() => RescanFile(fileInfo, matchAttempts));
 
         var url = _settings.Webhook.Url;
         if (url == null || url == "https://discord.com/api/webhooks/{webhook.id}/{webhook.token}") break;
@@ -96,7 +93,7 @@ public class WebhookDump : IPlugin
         break;
       case <= 4:
         if (!seenFiles.Contains(fileInfo.VideoFileID)) break;
-        await RescanFile(fileInfo, matchAttempts);
+        _ = Task.Run(() => RescanFile(fileInfo, matchAttempts));
         break;
       default:
         break;
@@ -198,15 +195,16 @@ public class WebhookDump : IPlugin
     var settings = _settings.Shoko;
     var uri = $"http://localhost:{settings.ServerPort}/api/v3/File{file.VideoFileID}/Rescan";
 
-    try {
-    await _httpClient.SendAsync(new HttpRequestMessage(HttpMethod.Get, uri)
+    try
     {
-      Headers =
+      await _httpClient.SendAsync(new HttpRequestMessage(HttpMethod.Get, uri)
+      {
+        Headers =
       {
         {"accept", "*/*"},
         {"apikey", settings.ApiKey }
       }
-    });
+      });
     }
     catch (HttpRequestException)
     {
