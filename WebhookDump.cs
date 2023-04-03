@@ -193,11 +193,11 @@ public class WebhookDump : IPlugin
     await Task.Delay(autoMatchAttempts * 5 * 60 * 1000);
 
     var settings = _settings.Shoko;
-    var uri = $"http://localhost:{settings.ServerPort}/api/v3/File{file.VideoFileID}/Rescan";
+    var uri = $"http://localhost:{settings.ServerPort}/api/v3/File/{file.VideoFileID}/Rescan";
 
     try
     {
-      await _httpClient.SendAsync(new HttpRequestMessage(HttpMethod.Get, uri)
+      await _httpClient.SendAsync(new HttpRequestMessage(HttpMethod.Post, uri)
       {
         Headers =
       {
