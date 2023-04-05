@@ -6,8 +6,8 @@ public class CustomSettings : ISettings
 
   public WebhookSettings Webhook { get; set; }
 
-	public CustomSettings()
-	{
+  public CustomSettings()
+  {
     Shoko = new ShokoSettings();
     Webhook = new WebhookSettings();
   }
