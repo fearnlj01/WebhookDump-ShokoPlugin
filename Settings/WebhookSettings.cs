@@ -25,12 +25,12 @@ public class WebhookSettings : IWebhookSettings
 
     Matched = new WebhookMessageSettings()
 		{
-			EmbedColor = "#3B82F6",
+			EmbedColor = "#57F287",
 			EmbedText = "An unmatched file automatically dumped by this plugin has now been matched.",
 		};
 		Unmatched = new WebhookMessageSettings()
 		{
-			EmbedColor = "#57F287",
+			EmbedColor = "#3B82F6",
 			EmbedText = "The above file has been found by Shoko Server but could not be matched against AniDB. The file has now been dumped with AVDump, result as below.",
 		};
   }

@@ -131,7 +131,7 @@ public class WebhookDump : IPlugin
     var episodeNum = episodeInfo.Number.ToString("00", CultureInfo.InvariantCulture);
     var shokoUrl = $"{_settings.Shoko.PublicUrl}:{_settings.Shoko.PublicPort}".TrimEnd(':');
 
-    var json = $$"""{"content": null, "embeds": [{"title": "{{fileInfo.Filename}}", "description": "An unmatched file automatically dumped by this plugin has now been matched.", "url": "{{shokoUrl}}", "color": {{0x57f287}}, "fields": [{"name": "Entry", "value": "{{episodeNum}} - [{{episodeTitle.Title}}](https://anidb.net/e{{episodeInfo.EpisodeID}})", "inline": true }, {"name": "File ID", "value": "{{fileInfo.VideoFileID}}", "inline": true }, {"name": "Anime", "value": "[{{animeInfo.PreferredTitle}}](https://anidb.net/a{{animeInfo.AnimeID}})", "inline": false }]}], "username": "Shoko", "avatar_url": "{{_settings.Webhook.AvatarUrl}}", "attachments": []}""";
+    var json = $$"""{"content": {{_settings.Webhook.Matched.MessageText ?? "null"}}, "embeds": [{"title": "{{fileInfo.Filename}}", "description": "{{_settings.Webhook.Matched.EmbedText}}", "url": "{{shokoUrl}}", "color": {{_settings.Webhook.Matched.EmbedColor}}, "fields": [{"name": "Entry", "value": "{{episodeNum}} - [{{episodeTitle.Title}}](https://anidb.net/e{{episodeInfo.EpisodeID}})", "inline": true }, {"name": "File ID", "value": "{{fileInfo.VideoFileID}}", "inline": true }, {"name": "Anime", "value": "[{{animeInfo.PreferredTitle}}](https://anidb.net/a{{animeInfo.AnimeID}})", "inline": false }]}], "username": "Shoko", "avatar_url": "{{_settings.Webhook.AvatarUrl}}", "attachments": []}""";
 
     var url = $"{_settings.Webhook.Url}/messages/{webhookMessageId}";
     HttpRequestMessage request = new(HttpMethod.Patch, url)
