@@ -6,6 +6,6 @@ public interface IWebhookSettings
 	string Url { get; set; }
 	string Username { get; set; }
 	string AvatarUrl { get; set; }
-	IWebhookMessageSettings Matched { get; set; }
-	IWebhookMessageSettings Unmatched { get; set; }
+	WebhookMessageSettings Matched { get; set; }
+	WebhookMessageSettings Unmatched { get; set; }
 }

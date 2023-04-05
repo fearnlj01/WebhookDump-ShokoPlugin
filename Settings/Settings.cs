@@ -1,12 +1,12 @@
 namespace Shoko.Plugin.WebhookDump.Settings;
 
-public class Settings : ISettings
+public class CustomSettings : ISettings
 {
-  public IShokoSettings Shoko { get; set; }
+  public ShokoSettings Shoko { get; set; }
 
-  public IWebhookSettings Webhook { get; set; }
+  public WebhookSettings Webhook { get; set; }
 
-	public Settings()
+	public CustomSettings()
 	{
     Shoko = new ShokoSettings();
     Webhook = new WebhookSettings();

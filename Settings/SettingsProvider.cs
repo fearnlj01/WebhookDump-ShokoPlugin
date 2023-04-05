@@ -10,9 +10,9 @@ namespace Shoko.Plugin.WebhookDump.Settings;
 public class SettingsProvider : ISettingsProvider
 {
   private static readonly Logger _logger = LogManager.GetCurrentClassLogger();
-  private static readonly string _filePath = Path.Combine(ApplicationPath, "WebhookDump.json");
+  private readonly string _filePath = Path.Combine(ApplicationPath, "WebhookDump.json");
   private readonly object _settingsLock = new();
-  private Settings _settings;
+  private CustomSettings _settings;
 
   #region `ShokoServer/Shoko.Server/Utilities/Utils.cs`
   private static bool IsLinux
@@ -69,17 +69,17 @@ public class SettingsProvider : ISettingsProvider
     }
   }
 
-  private Settings GetSettingsFromFile()
+  private CustomSettings GetSettingsFromFile()
   {
-    Settings settings;
+    CustomSettings settings;
     try
     {
       var contents = File.ReadAllText(_filePath);
-      settings = JsonSerializer.Deserialize<Settings>(contents, _options);
+      settings = JsonSerializer.Deserialize<CustomSettings>(contents, _options);
     }
     catch (FileNotFoundException)
     {
-      settings = new Settings();
+      settings = new CustomSettings();
       SaveSettings(settings);
     }
 

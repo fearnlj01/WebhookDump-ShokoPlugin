@@ -14,6 +14,7 @@ using Shoko.Plugin.Abstractions.DataModels;
 using Shoko.Plugin.WebhookDump.Models;
 using Shoko.Plugin.WebhookDump.Models.AniDB;
 using Shoko.Plugin.WebhookDump.Settings;
+using ISettingsProvider = Shoko.Plugin.WebhookDump.Settings.ISettingsProvider;
 
 namespace Shoko.Plugin.WebhookDump;
 
@@ -25,9 +26,9 @@ public class WebhookDump : IPlugin
 
   private static readonly Logger _logger = LogManager.GetCurrentClassLogger();
 
-  private readonly CustomSettingsProvider _settingsProvider;
+  private readonly ISettingsProvider _settingsProvider;
 
-  private readonly CustomSettings _settings;
+  private readonly ISettings _settings;
 
   private readonly HashSet<int> seenFiles = new();
 
@@ -35,15 +36,15 @@ public class WebhookDump : IPlugin
 
   public static void ConfigureServices(IServiceCollection services)
   {
-    services.AddSingleton<ICustomSettingsProvider, CustomSettingsProvider>();
-    services.AddScoped<ICustomSettings, CustomSettings>();
+    services.AddSingleton<ISettingsProvider, SettingsProvider>();
+    services.AddScoped<ISettings, CustomSettings>();
   }
 
-  public WebhookDump(IShokoEventHandler eventHandler, ICustomSettingsProvider settingsProvider)
+  public WebhookDump(IShokoEventHandler eventHandler, ISettingsProvider settingsProvider)
   {
     eventHandler.FileNotMatched += OnFileNotMatched;
     eventHandler.FileMatched += OnFileMatched;
-    _settingsProvider = (CustomSettingsProvider)settingsProvider;
+    _settingsProvider = settingsProvider;
     _settings = _settingsProvider.GetSettings();
   }
 

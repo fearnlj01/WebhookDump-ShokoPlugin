@@ -1,3 +1,4 @@
+using System;
 using System.Globalization;
 using Shoko.Plugin.Abstractions.DataModels;
 using Shoko.Plugin.WebhookDump.Models.AniDB;
@@ -6,25 +7,25 @@ namespace Shoko.Plugin.WebhookDump.Models;
 
 public class WebhookEmbed : IWebhookEmbed
 {
-  private static CustomSettingsProvider _settingsProvider;
-  private static CustomSettings _settings;
+  private static ISettingsProvider _settingsProvider;
+  private static ISettings _settings;
   private static IVideoFile _videoFile;
   private static AVDumpResult _AVDumpResult;
   private static AniDBSearchResult _searchResult;
 
-  public WebhookEmbed(CustomSettingsProvider customSettingsProvider, IVideoFile videoFile, AVDumpResult result, AniDBSearchResult searchResult)
+  public WebhookEmbed(ISettingsProvider SettingsProvider, IVideoFile videoFile, AVDumpResult result, AniDBSearchResult searchResult)
   {
-    _settingsProvider = customSettingsProvider;
+    _settingsProvider = SettingsProvider;
     _settings = _settingsProvider.GetSettings();
     _videoFile = videoFile;
     _AVDumpResult = result;
     _searchResult = searchResult;
 
     Title = _videoFile.Filename;
-    Description = _settings.Webhook.EmbedText;
+    Description = _settings.Webhook.Unmatched.EmbedText;
     Url = $"{_settings.Shoko.PublicUrl}:{_settings.Shoko.PublicPort?.ToString(CultureInfo.InvariantCulture)}".TrimEnd(':')
       + "/webui/utilities/unrecognized/files";
-    Color = _settings.Webhook.EmbedColor;
+    Color = Convert.ToInt32(_settings.Webhook.Unmatched.EmbedColor.Replace("#", string.Empty), 16);
 
     var titleArray = new WebhookTitleField[_searchResult.List.Length];
     for (int i = 0; i < _searchResult.List.Length; i++)

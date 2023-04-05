@@ -4,24 +4,25 @@ namespace Shoko.Plugin.WebhookDump.Settings;
 
 public class WebhookSettings : IWebhookSettings
 {
-	[DefaultValue(false)]
   public bool Enabled { get; set; }
 
-	[DefaultValue(null)]
   public string Url { get; set; }
 
-	[DefaultValue("Shoko")]
   public string Username { get; set; }
 
-	[DefaultValue("https://shokoanime.com/icon.png")]
   public string AvatarUrl { get; set; }
 
-  public IWebhookMessageSettings Matched { get; set; }
+  public WebhookMessageSettings Matched { get; set; }
 
-  public IWebhookMessageSettings Unmatched { get; set; }
+  public WebhookMessageSettings Unmatched { get; set; }
 
 	public WebhookSettings()
 	{
+    Enabled = false;
+    Url = null;
+    Username = "Shoko";
+    AvatarUrl = "https://shokoanime.com/icon.png";
+
     Matched = new WebhookMessageSettings()
 		{
 			EmbedColor = "#3B82F6",
