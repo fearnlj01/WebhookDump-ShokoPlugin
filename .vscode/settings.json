@@ -5,6 +5,8 @@
   "omnisharp.enableEditorConfigSupport": true,
   "omnisharp.enableRoslynAnalyzers": true,
   "files.eol": "\n",
+  "editor.insertSpaces": true,
+  "editor.indentSize": 2,
   "files.exclude": {
     "obj/**": true,
     "bin/**": true,

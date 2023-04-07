@@ -2,13 +2,10 @@ namespace Shoko.Plugin.WebhookDump.Settings;
 
 public interface IWebhookSettings
 {
-  public string Url { get; set; }
-
-  public string Username { get; set; }
-  public string AvatarUrl { get; set; }
-
-  public string MessageText { get; set; }
-
-  public string EmbedText { get; set; }
-  public int EmbedColor { get; set; }
+  bool Enabled { get; set; }
+  string Url { get; set; }
+  string Username { get; set; }
+  string AvatarUrl { get; set; }
+  WebhookMessageSettings Matched { get; set; }
+  WebhookMessageSettings Unmatched { get; set; }
 }
