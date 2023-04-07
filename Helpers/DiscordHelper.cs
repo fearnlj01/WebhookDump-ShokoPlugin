@@ -212,7 +212,7 @@ public class DiscordHelper : IDisposable, IDiscordHelper
   {
     return new WebhookFooter()
     {
-      Text = $"File ID: {file.VideoFileID}"
+      Text = $"File ID: {file.VideoFileID} | CRC: {file.Hashes.CRC}"
     };
   }
 
