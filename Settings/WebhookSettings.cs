@@ -1,5 +1,3 @@
-using System.ComponentModel;
-
 namespace Shoko.Plugin.WebhookDump.Settings;
 
 public class WebhookSettings : IWebhookSettings
