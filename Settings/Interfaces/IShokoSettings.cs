@@ -6,4 +6,5 @@ public interface IShokoSettings
   int ServerPort { get; set; }
   string PublicUrl { get; set; }
   int? PublicPort { get; set; }
+  AutomaticMatchSettings AutomaticMatch { get; set; }
 }

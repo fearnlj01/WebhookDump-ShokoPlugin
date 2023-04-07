@@ -72,43 +72,45 @@ public class WebhookDump : IPlugin
 
     var matchAttempts = fileNotMatchedEvent.AutoMatchAttempts;
 
-    switch (matchAttempts)
+    if (matchAttempts == 1)
     {
-      case 1:
-        try
+      try
+      {
+        seenFiles.Add(fileInfo.VideoFileID);
+        var dumpResult = await _shokoHelper.DumpFile(fileInfo);
+
+        if (_settings.Shoko.AutomaticMatch.Enabled)
         {
-          seenFiles.Add(fileInfo.VideoFileID);
-          var dumpResult = await _shokoHelper.DumpFile(fileInfo);
-
-          // Fire and forget a rescan event
-          _ = Task.Run(() => _shokoHelper.ScanFile(fileInfo, matchAttempts)).ConfigureAwait(false);
-
-          // Exit now if not using webhooks
-          if (!_settings.Webhook.Enabled) return;
-
-          var searchResults = await _shokoHelper.MatchTitle(fileInfo);
-
-          var messageId = await _discordHelper.SendWebhook(fileInfo, dumpResult, searchResults);
-          sentWebhooks.Add(fileInfo.VideoFileID, messageId);
-        }
-        catch (Exception ex)
-        {
-          _logger.Warn("Exception: {ex}", ex);
-        }
-        break;
-      case <= 5:
-        try
-        {
-          if (!seenFiles.Contains(fileInfo.VideoFileID)) break;
           _ = Task.Run(() => _shokoHelper.ScanFile(fileInfo, matchAttempts)).ConfigureAwait(false);
         }
-        catch (Exception ex)
-        {
-          _logger.Warn("Exception: {ex}", ex);
-        }
-        break;
-      default:
-        break;
+
+        // Exit now if not using webhooks
+        if (!_settings.Webhook.Enabled) return;
+
+        var searchResults = await _shokoHelper.MatchTitle(fileInfo);
+
+        var messageId = await _discordHelper.SendWebhook(fileInfo, dumpResult, searchResults);
+        sentWebhooks.Add(fileInfo.VideoFileID, messageId);
+      }
+      catch (Exception ex)
+      {
+        _logger.Warn("Exception: {ex}", ex);
+      }
+      return;
+    }
+
+    if (matchAttempts <= _settings.Shoko.AutomaticMatch.MaxAttempts && _settings.Shoko.AutomaticMatch.Enabled)
+    {
+      try
+      {
+        if (!seenFiles.Contains(fileInfo.VideoFileID)) return;
+        _ = Task.Run(() => _shokoHelper.ScanFile(fileInfo, matchAttempts)).ConfigureAwait(false);
+      }
+      catch (Exception ex)
+      {
+        _logger.Warn("Exception: {ex}", ex);
+      }
+      return;
     }
   }
 

@@ -13,6 +13,7 @@ public class ShokoSettings : IShokoSettings
   public string PublicUrl { get; set; }
 
   public int? PublicPort { get; set; }
+  public AutomaticMatchSettings AutomaticMatch { get; set; }
 
   public ShokoSettings()
   {
@@ -20,5 +21,11 @@ public class ShokoSettings : IShokoSettings
     ServerPort = 8111;
     PublicUrl = "http://localhost";
     PublicPort = null;
+    AutomaticMatch = new()
+    {
+      Enabled = true,
+      MaxAttempts = 5,
+      WatchReactions = false
+    };
   }
 }
