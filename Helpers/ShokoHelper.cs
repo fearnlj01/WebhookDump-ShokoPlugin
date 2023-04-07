@@ -114,6 +114,22 @@ public class ShokoHelper : IDisposable, IShokoHelper
     }
   }
 
+  public async Task ScanFileById(int fileId)
+  {
+    try
+    {
+      var request = new HttpRequestMessage(HttpMethod.Post, $"File/{fileId}/Rescan");
+
+      var response = await _httpClient.SendAsync(request);
+      response.EnsureSuccessStatusCode();
+    }
+    catch (HttpRequestException ex)
+    {
+      _logger.Warn($"Unable to scan file by ID ('{fileId}')");
+      _logger.Warn("Exception: ", ex);
+    }
+  }
+
   public async Task<AniDBPoster> GetSeriesPoster(IAnime anime)
   {
     try

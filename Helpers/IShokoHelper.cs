@@ -14,4 +14,5 @@ public interface IShokoHelper
   Task<AniDBPoster> GetSeriesPoster(IAnime anime);
   Task<AniDBSearchResult> MatchTitle(IVideoFile file);
   Task ScanFile(IVideoFile file, int autoMatchAttempts = 1);
+  Task ScanFileById(int fileId);
 }

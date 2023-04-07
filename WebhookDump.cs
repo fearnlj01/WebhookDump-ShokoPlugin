@@ -29,9 +29,9 @@ public class WebhookDump : IPlugin
 
   private readonly IDiscordHelper _discordHelper;
 
-  private readonly HashSet<int> seenFiles = new();
+  private readonly IMessageTracker _messageTracker;
 
-  private readonly Dictionary<int, string> sentWebhooks = new();
+  private readonly HashSet<int> seenFiles;
 
   public static void ConfigureServices(IServiceCollection services)
   {
@@ -39,9 +39,10 @@ public class WebhookDump : IPlugin
     services.AddScoped<ISettings, CustomSettings>();
     services.AddSingleton<IShokoHelper, ShokoHelper>();
     services.AddSingleton<IDiscordHelper, DiscordHelper>();
+    services.AddSingleton<IMessageTracker, MessageTracker>();
   }
 
-  public WebhookDump(IShokoEventHandler eventHandler, ISettingsProvider settingsProvider, IShokoHelper shokoHelper, IDiscordHelper discordHelper)
+  public WebhookDump(IShokoEventHandler eventHandler, ISettingsProvider settingsProvider, IShokoHelper shokoHelper, IDiscordHelper discordHelper, IMessageTracker messageTracker)
   {
     eventHandler.FileNotMatched += OnFileNotMatched;
     eventHandler.FileMatched += OnFileMatched;
@@ -49,8 +50,11 @@ public class WebhookDump : IPlugin
     _settingsProvider = settingsProvider;
     _settings = _settingsProvider.GetSettings();
 
+    seenFiles = new();
+
     _shokoHelper = shokoHelper;
     _discordHelper = discordHelper;
+    _messageTracker = messageTracker;
   }
 
   public void OnSettingsLoaded(IPluginSettings settings)
@@ -90,7 +94,7 @@ public class WebhookDump : IPlugin
         var searchResults = await _shokoHelper.MatchTitle(fileInfo);
 
         var messageId = await _discordHelper.SendWebhook(fileInfo, dumpResult, searchResults);
-        sentWebhooks.Add(fileInfo.VideoFileID, messageId);
+        _messageTracker.TryAddMessage(fileInfo.VideoFileID, messageId);
       }
       catch (Exception ex)
       {
@@ -121,7 +125,7 @@ public class WebhookDump : IPlugin
     var episodeInfo = fileMatchedEvent.EpisodeInfo.FirstOrDefault();
 
     if (!seenFiles.Remove(fileInfo.VideoFileID)) return;
-    if (!sentWebhooks.TryGetValue(fileInfo.VideoFileID, out string messageId)) return;
+    if (!_messageTracker.TryGetValue(fileInfo.VideoFileID, out string messageId)) return;
 
     try
     {
@@ -129,7 +133,7 @@ public class WebhookDump : IPlugin
       var imageStream = await _shokoHelper.GetImageStream(poster);
 
       await _discordHelper.PatchWebhook(fileInfo, animeInfo, episodeInfo, imageStream, messageId);
-      sentWebhooks.Remove(fileInfo.VideoFileID);
+      _messageTracker.TryRemoveMessage(fileInfo.VideoFileID);
     }
     catch (Exception ex)
     {
