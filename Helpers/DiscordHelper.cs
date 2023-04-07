@@ -216,6 +216,26 @@ public class DiscordHelper : IDisposable, IDiscordHelper
     };
   }
 
+  public async Task<bool> GetMessageReactionBool(string messageId)
+  {
+    try
+    {
+      var response = await _httpClient.GetAsync($"{BaseUrl}/messages/{messageId}");
+      response.EnsureSuccessStatusCode();
+
+      var content = await response.Content.ReadAsStringAsync();
+      
+      using var jsonDoc = JsonDocument.Parse(content);
+      return jsonDoc.RootElement.TryGetProperty("reactions", out _);
+    }
+    catch (Exception ex)
+    {
+      _logger.Warn($"Error retrieving details for message ID = '{messageId}'");
+      _logger.Warn("Exception: {ex}", ex);
+      return false;
+    }
+  }
+
   #region Disposal
   private bool _disposed;
 
