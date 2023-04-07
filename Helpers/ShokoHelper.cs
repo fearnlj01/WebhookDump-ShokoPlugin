@@ -100,7 +100,7 @@ public class ShokoHelper : IDisposable, IShokoHelper
   {
     try
     {
-      await Task.Delay(autoMatchAttempts * 5 * 60 * 1000);
+      await Task.Delay(TimeSpan.FromMinutes(autoMatchAttempts * 5));
 
       var request = new HttpRequestMessage(HttpMethod.Post, $"File/{file.VideoFileID}/Rescan");
 
