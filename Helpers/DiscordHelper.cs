@@ -24,6 +24,8 @@ public class DiscordHelper : IDisposable, IDiscordHelper
   private readonly ISettings _settings;
   private readonly ISettingsProvider _settingsProvider;
 
+  private readonly string BaseUrl;
+
   private readonly JsonSerializerOptions _options = new()
   {
     PropertyNamingPolicy = new WebhookNamingPolicy()
@@ -35,6 +37,7 @@ public class DiscordHelper : IDisposable, IDiscordHelper
     _settings = _settingsProvider.GetSettings();
 
     _httpClient = new();
+    BaseUrl = _settings.Webhook.Url;
   }
 
   public async Task<string> SendWebhook(IVideoFile file, AVDumpResult dumpResult, AniDBSearchResult searchResult)
@@ -44,7 +47,7 @@ public class DiscordHelper : IDisposable, IDiscordHelper
       var webhook = GetUnmatchedWebhook(file, dumpResult, searchResult);
       var json = JsonSerializer.Serialize(webhook, _options);
 
-      var response = await _httpClient.PostAsync($"{_settings.Webhook.Url}?wait=true", new StringContent(json, Encoding.UTF8, "application/json"));
+      var response = await _httpClient.PostAsync($"{BaseUrl}?wait=true", new StringContent(json, Encoding.UTF8, "application/json"));
       response.EnsureSuccessStatusCode();
 
       var content = await response.Content.ReadAsStringAsync();
@@ -80,7 +83,7 @@ public class DiscordHelper : IDisposable, IDiscordHelper
 
       form.Add(imageStreamContent, "files[0]", "unknown.jpg");
 
-      var response = await _httpClient.PatchAsync($"{_settings.Webhook.Url}/messages/{messageId}", form);
+      var response = await _httpClient.PatchAsync($"{BaseUrl}/messages/{messageId}", form);
 
       response.EnsureSuccessStatusCode();
     }
