@@ -1,50 +1,70 @@
 {
-	// See https://go.microsoft.com/fwlink/?LinkId=733558
-	// for the documentation about the tasks.json format
-	"version": "2.0.0",
-	"tasks": [
-		{
-			"label": "build",
-			"command": "dotnet",
-			"type": "shell",
-			"args": [
-				"build",
-				"-c",
-				"${config:debugReleaseToggle}",
-				"/property:GenerateFullPaths=true",
-				"/consoleloggerparameters:NoSummary"
-			],
-			"group": "build",
+  // See https://go.microsoft.com/fwlink/?LinkId=733558
+  // for the documentation about the tasks.json format
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "command": "dotnet",
+			"dependsOn": [ "format-whitespace", "format-style" ],
+			"dependsOrder": "sequence",
+      "type": "shell",
+      "args": [
+        "build",
+        "-c",
+        "${config:debugReleaseToggle}",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "group": "build",
+      "presentation": {
+        "reveal": "silent"
+      },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "launchShokoServer",
+      "type": "process",
+      "dependsOn": ["build-and-copy"],
+      "command": "C:/'Program Files (x86)'/Shoko/'Shoko Server'/ShokoServer.exe",
+      "presentation": {
+        "reveal": "never"
+      }
+    },
+    {
+      "label": "build-and-copy",
+      "type": "shell",
+      "command": "cp",
+      "dependsOn": ["build"],
+      "args": [
+        "${config:buildOutput}/WebhookDump.dll",
+        "${config:shokoPluginOutput}"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "silent"
+      }
+    },
+    {
+      "label": "format-whitespace",
+      "type": "shell",
+      "command": "dotnet",
+      "args": ["format", "whitespace"],
 			"presentation": {
-				"reveal": "silent"
-			},
-			"problemMatcher": "$msCompile"
-		},
-		{
-			"label": "launchShokoServer",
-			"type": "shell",
-			"dependsOn": ["build-and-copy"],
-			"command": "C:/'Program Files (x86)'/Shoko/'Shoko Server'/ShokoServer.exe",
+        "reveal": "never"
+      }
+    },
+    {
+      "label": "format-style",
+      "type": "shell",
+      "command": "dotnet",
+      "args": ["format", "style"],
 			"presentation": {
-				"reveal": "never"
-			}
-		},
-		{
-			"label": "build-and-copy",
-			"type": "shell",
-			"command": "cp",
-			"dependsOn": ["build"],
-			"args": [
-				"${config:buildOutput}/WebhookDump.dll",
-				"${config:shokoPluginOutput}"
-			],
-			"group": {
-				"kind": "build",
-				"isDefault": true
-			},
-			"presentation": {
-				"reveal": "silent"
-			},
-		}
-	]
+        "reveal": "never"
+      }
+    }
+  ]
 }
