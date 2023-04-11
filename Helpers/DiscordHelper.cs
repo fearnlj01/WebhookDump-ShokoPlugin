@@ -224,7 +224,7 @@ public class DiscordHelper : IDisposable, IDiscordHelper
       response.EnsureSuccessStatusCode();
 
       var content = await response.Content.ReadAsStringAsync();
-      
+
       using var jsonDoc = JsonDocument.Parse(content);
       return jsonDoc.RootElement.TryGetProperty("reactions", out _);
     }

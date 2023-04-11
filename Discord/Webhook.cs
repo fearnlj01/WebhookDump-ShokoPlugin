@@ -12,7 +12,7 @@ public class Webhook : IWebhook
   [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public IWebhookAttachment[] Attachments { get; set; }
 
-  
+
   public string Username { get; set; }
   public string AvatarUrl { get; set; }
 }
