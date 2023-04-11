@@ -43,18 +43,15 @@ public class ShokoHelper : IDisposable, IShokoHelper
     {
       HttpRequestMessage request = new(HttpMethod.Post, $"File/{file.VideoFileID}/AVDump");
 
-      var response = await _httpClient.SendAsync(request);
-      response.EnsureSuccessStatusCode();
+      HttpResponseMessage response = await _httpClient.SendAsync(request);
+      _ = response.EnsureSuccessStatusCode();
 
-      var content = await response.Content.ReadAsStringAsync();
+      string content = await response.Content.ReadAsStringAsync();
 
       return JsonSerializer.Deserialize<AVDumpResult>(content);
     }
     catch (Exception ex) when (
-      ex is HttpRequestException ||
-      ex is JsonException ||
-      ex is ArgumentNullException ||
-      ex is InvalidOperationException
+      ex is HttpRequestException or JsonException or ArgumentNullException or InvalidOperationException
     )
     {
       if (attemptCount < maxAttempts)
@@ -76,18 +73,15 @@ public class ShokoHelper : IDisposable, IShokoHelper
   {
     try
     {
-      var title = GetSafeTitleFromFile(file);
-      var response = await _httpClient.GetAsync($"Series/AniDB/Search/{title}?includeTitles=false&pageSize=3&page=1");
-      response.EnsureSuccessStatusCode();
+      string title = GetSafeTitleFromFile(file);
+      HttpResponseMessage response = await _httpClient.GetAsync($"Series/AniDB/Search/{title}?includeTitles=false&pageSize=3&page=1");
+      _ = response.EnsureSuccessStatusCode();
 
-      var content = await response.Content.ReadAsStringAsync();
+      string content = await response.Content.ReadAsStringAsync();
       return JsonSerializer.Deserialize<AniDBSearchResult>(content);
     }
     catch (Exception ex) when (
-      ex is HttpRequestException ||
-      ex is JsonException ||
-      ex is ArgumentNullException ||
-      ex is InvalidOperationException
+      ex is HttpRequestException or JsonException or ArgumentNullException or InvalidOperationException
     )
     {
       _logger.Warn($"Unable to retrieve information about the file ('{file.Filename}') from AniDB");
@@ -102,10 +96,10 @@ public class ShokoHelper : IDisposable, IShokoHelper
     {
       await Task.Delay(TimeSpan.FromMinutes(autoMatchAttempts * 5));
 
-      var request = new HttpRequestMessage(HttpMethod.Post, $"File/{file.VideoFileID}/Rescan");
+      HttpRequestMessage request = new(HttpMethod.Post, $"File/{file.VideoFileID}/Rescan");
 
-      var response = await _httpClient.SendAsync(request);
-      response.EnsureSuccessStatusCode();
+      HttpResponseMessage response = await _httpClient.SendAsync(request);
+      _ = response.EnsureSuccessStatusCode();
     }
     catch (HttpRequestException ex)
     {
@@ -118,10 +112,10 @@ public class ShokoHelper : IDisposable, IShokoHelper
   {
     try
     {
-      var request = new HttpRequestMessage(HttpMethod.Post, $"File/{fileId}/Rescan");
+      HttpRequestMessage request = new(HttpMethod.Post, $"File/{fileId}/Rescan");
 
-      var response = await _httpClient.SendAsync(request);
-      response.EnsureSuccessStatusCode();
+      HttpResponseMessage response = await _httpClient.SendAsync(request);
+      _ = response.EnsureSuccessStatusCode();
     }
     catch (HttpRequestException ex)
     {
@@ -134,13 +128,13 @@ public class ShokoHelper : IDisposable, IShokoHelper
   {
     try
     {
-      var response = await _httpClient.GetAsync($"Series/AniDB/{anime.AnimeID}/Series?includeDataFrom=AniDB");
-      response.EnsureSuccessStatusCode();
+      HttpResponseMessage response = await _httpClient.GetAsync($"Series/AniDB/{anime.AnimeID}/Series?includeDataFrom=AniDB");
+      _ = response.EnsureSuccessStatusCode();
 
-      var content = await response.Content.ReadAsStringAsync();
+      string content = await response.Content.ReadAsStringAsync();
 
-      using var jsonDoc = JsonDocument.Parse(content);
-      var image = jsonDoc.RootElement.GetProperty("Images").GetProperty("Posters")[0].GetRawText();
+      using JsonDocument jsonDoc = JsonDocument.Parse(content);
+      string image = jsonDoc.RootElement.GetProperty("Images").GetProperty("Posters")[0].GetRawText();
       return JsonSerializer.Deserialize<AniDBPoster>(image);
     }
     catch (HttpRequestException ex)
@@ -155,15 +149,15 @@ public class ShokoHelper : IDisposable, IShokoHelper
   {
     try
     {
-      var response = await _httpClient.GetAsync($"Image/{poster.Source}/{poster.Type}/{poster.ID}");
-      response.EnsureSuccessStatusCode();
+      HttpResponseMessage response = await _httpClient.GetAsync($"Image/{poster.Source}/{poster.Type}/{poster.ID}");
+      _ = response.EnsureSuccessStatusCode();
 
       MemoryStream stream = new();
 
-      using var responseStream = await response.Content.ReadAsStreamAsync();
+      using Stream responseStream = await response.Content.ReadAsStreamAsync();
       await responseStream.CopyToAsync(stream);
 
-      stream.Seek(0, SeekOrigin.Begin);
+      _ = stream.Seek(0, SeekOrigin.Begin);
       return stream;
     }
     catch (HttpRequestException ex)
@@ -176,10 +170,10 @@ public class ShokoHelper : IDisposable, IShokoHelper
 
   private static string GetSafeTitleFromFile(IVideoFile file)
   {
-    var regex = @"^((\[.*?\]\s*)*)(.+(?= - ))(.*)$";
+    string regex = @"^((\[.*?\]\s*)*)(.+(?= - ))(.*)$";
 
     Match results = Regex.Match(file.Filename, regex);
-    var output = results.Success ? results.Groups[3].Value : file.Filename;
+    string output = results.Success ? results.Groups[3].Value : file.Filename;
     return WebUtility.UrlEncode(output);
   }
 
@@ -196,7 +190,11 @@ public class ShokoHelper : IDisposable, IShokoHelper
   {
     if (!_disposed)
     {
-      if (disposing) _httpClient.Dispose();
+      if (disposing)
+      {
+        _httpClient.Dispose();
+      }
+
       _disposed = true;
     }
   }

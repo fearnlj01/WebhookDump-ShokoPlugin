@@ -63,14 +63,18 @@ public class MessageTracker : IMessageTracker, IDisposable
 
   private async void CheckAllMessages(object sender, ElapsedEventArgs e)
   {
-    foreach (var message in _messageSet)
+    foreach (KeyValuePair<int, string> message in _messageSet)
     {
-      if (_processedSet.Contains(message.Key)) continue;
+      if (_processedSet.Contains(message.Key))
+      {
+        continue;
+      }
+
       if (await _discordHelper.GetMessageReactionBool(message.Value))
       {
         _logger.Info($"Triggering rescan for (fileId={message.Key}, messageId={message.Value})");
         _ = Task.Run(() => _shokoHelper.ScanFileById(message.Key)).ConfigureAwait(false);
-        _processedSet.Add(message.Key);
+        _ = _processedSet.Add(message.Key);
       }
     }
   }

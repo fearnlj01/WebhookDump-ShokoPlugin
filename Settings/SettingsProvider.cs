@@ -15,34 +15,18 @@ public class SettingsProvider : ISettingsProvider
   private CustomSettings _settings;
 
   #region `ShokoServer/Shoko.Server/Utilities/Utils.cs`
-  private static bool IsLinux
-  {
-    get
-    {
-      var p = (int)Environment.OSVersion.Platform;
-      return p == 4 || p == 6 || p == 128;
-    }
-  }
+  private static bool IsLinux => Environment.OSVersion.Platform is PlatformID.Unix;
 
-  private static string DefaultInstance { get; set; } = Assembly.GetEntryAssembly().GetName().Name;
+  private static string DefaultInstance => Assembly.GetEntryAssembly().GetName().Name;
 
-  private static string ApplicationPath
-  {
-    get
-    {
-      if (IsLinux)
-      {
-        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".shoko",
-            DefaultInstance);
-      }
-
-      return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+  private static string ApplicationPath => IsLinux
+          ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".shoko",
+              DefaultInstance)
+          : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
           DefaultInstance);
-    }
-  }
   #endregion
 
-  private readonly static JsonSerializerOptions _options = new()
+  private static readonly JsonSerializerOptions _options = new()
   {
     AllowTrailingCommas = true,
     WriteIndented = true
@@ -59,7 +43,7 @@ public class SettingsProvider : ISettingsProvider
   {
     ValidateSettings(settings);
 
-    var json = JsonSerializer.Serialize(settings, _options);
+    string json = JsonSerializer.Serialize(settings, _options);
 
     lock (_settingsLock)
     {
@@ -74,7 +58,7 @@ public class SettingsProvider : ISettingsProvider
     CustomSettings settings;
     try
     {
-      var contents = File.ReadAllText(_filePath);
+      string contents = File.ReadAllText(_filePath);
       settings = JsonSerializer.Deserialize<CustomSettings>(contents, _options);
     }
     catch (FileNotFoundException)
@@ -90,8 +74,8 @@ public class SettingsProvider : ISettingsProvider
 
   private static void ValidateSettings(ISettings settings)
   {
-    var validationResults = new List<ValidationResult>();
-    var validationContext = new ValidationContext(settings);
+    List<ValidationResult> validationResults = new();
+    ValidationContext validationContext = new(settings);
 
     bool isValid = Validator.TryValidateObject(
       settings, validationContext, validationResults, true
@@ -99,9 +83,9 @@ public class SettingsProvider : ISettingsProvider
 
     if (!isValid)
     {
-      foreach (var validationResult in validationResults)
+      foreach (ValidationResult validationResult in validationResults)
       {
-        foreach (var memberName in validationResult.MemberNames)
+        foreach (string memberName in validationResult.MemberNames)
         {
           _logger.Error($"Error validating settings for property {memberName} : {validationResult.ErrorMessage}");
         }

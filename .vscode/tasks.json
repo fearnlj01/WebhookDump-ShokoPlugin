@@ -6,8 +6,7 @@
     {
       "label": "build",
       "command": "dotnet",
-			"dependsOn": [ "format-whitespace", "format-style" ],
-			"dependsOrder": "sequence",
+      "dependsOn": ["format"],
       "type": "shell",
       "args": [
         "build",
@@ -26,7 +25,7 @@
       "label": "launchShokoServer",
       "type": "process",
       "dependsOn": ["build-and-copy"],
-      "command": "C:/'Program Files (x86)'/Shoko/'Shoko Server'/ShokoServer.exe",
+      "command": "C:/Program Files (x86)/Shoko/Shoko Server/ShokoServer.exe",
       "presentation": {
         "reveal": "never"
       }
@@ -49,20 +48,11 @@
       }
     },
     {
-      "label": "format-whitespace",
+      "label": "format",
       "type": "shell",
       "command": "dotnet",
-      "args": ["format", "whitespace"],
-			"presentation": {
-        "reveal": "never"
-      }
-    },
-    {
-      "label": "format-style",
-      "type": "shell",
-      "command": "dotnet",
-      "args": ["format", "style"],
-			"presentation": {
+      "args": ["format"],
+      "presentation": {
         "reveal": "never"
       }
     }

@@ -44,15 +44,15 @@ public class DiscordHelper : IDisposable, IDiscordHelper
   {
     try
     {
-      var webhook = GetUnmatchedWebhook(file, dumpResult, searchResult);
-      var json = JsonSerializer.Serialize(webhook, _options);
+      Webhook webhook = GetUnmatchedWebhook(file, dumpResult, searchResult);
+      string json = JsonSerializer.Serialize(webhook, _options);
 
-      var response = await _httpClient.PostAsync($"{BaseUrl}?wait=true", new StringContent(json, Encoding.UTF8, "application/json"));
-      response.EnsureSuccessStatusCode();
+      HttpResponseMessage response = await _httpClient.PostAsync($"{BaseUrl}?wait=true", new StringContent(json, Encoding.UTF8, "application/json"));
+      _ = response.EnsureSuccessStatusCode();
 
-      var content = await response.Content.ReadAsStringAsync();
+      string content = await response.Content.ReadAsStringAsync();
 
-      using var jsonDoc = JsonDocument.Parse(content);
+      using JsonDocument jsonDoc = JsonDocument.Parse(content);
       return jsonDoc.RootElement.GetProperty("id").GetString();
     }
     catch (Exception ex)
@@ -67,14 +67,14 @@ public class DiscordHelper : IDisposable, IDiscordHelper
   {
     try
     {
-      var form = new MultipartFormDataContent();
+      MultipartFormDataContent form = new();
 
-      var webhook = GetMatchedWebhook(file, anime, episode);
-      var json = JsonSerializer.Serialize(webhook, _options);
+      Webhook webhook = GetMatchedWebhook(file, anime, episode);
+      string json = JsonSerializer.Serialize(webhook, _options);
 
       form.Add(new StringContent(json, Encoding.UTF8, "application/json"), "payload_json");
 
-      var imageStreamContent = new StreamContent(imageStream)
+      StreamContent imageStreamContent = new(imageStream)
       {
         Headers = {
           ContentType = MediaTypeHeaderValue.Parse("image/jpeg")
@@ -83,9 +83,9 @@ public class DiscordHelper : IDisposable, IDiscordHelper
 
       form.Add(imageStreamContent, "files[0]", "unknown.jpg");
 
-      var response = await _httpClient.PatchAsync($"{BaseUrl}/messages/{messageId}", form);
+      HttpResponseMessage response = await _httpClient.PatchAsync($"{BaseUrl}/messages/{messageId}", form);
 
-      response.EnsureSuccessStatusCode();
+      _ = response.EnsureSuccessStatusCode();
     }
     catch (Exception ex)
     {
@@ -164,7 +164,7 @@ public class DiscordHelper : IDisposable, IDiscordHelper
 
   private static List<WebhookField> GetUnmatchedFields(AVDumpResult dumpResult, AniDBSearchResult searchResult)
   {
-    var output = new List<WebhookField>()
+    List<WebhookField> output = new()
     {
       new WebhookField()
       {
@@ -173,7 +173,7 @@ public class DiscordHelper : IDisposable, IDiscordHelper
       }
     };
 
-    foreach (var result in searchResult.List)
+    foreach (AniDBSeries result in searchResult.List)
     {
       output.Add(new WebhookField()
       {
@@ -188,8 +188,8 @@ public class DiscordHelper : IDisposable, IDiscordHelper
 
   private static List<WebhookField> GetMatchedFields(IAnime series, IEpisode episode)
   {
-    var episodeTitle = episode.Titles.Where(t => t.Language == TitleLanguage.English).FirstOrDefault();
-    var episodeNumber = episode.Number.ToString("00", CultureInfo.InvariantCulture);
+    AnimeTitle episodeTitle = episode.Titles.FirstOrDefault(t => t.Language == TitleLanguage.English);
+    string episodeNumber = episode.Number.ToString("00", CultureInfo.InvariantCulture);
 
     return new List<WebhookField>()
     {
@@ -220,12 +220,12 @@ public class DiscordHelper : IDisposable, IDiscordHelper
   {
     try
     {
-      var response = await _httpClient.GetAsync($"{BaseUrl}/messages/{messageId}");
-      response.EnsureSuccessStatusCode();
+      HttpResponseMessage response = await _httpClient.GetAsync($"{BaseUrl}/messages/{messageId}");
+      _ = response.EnsureSuccessStatusCode();
 
-      var content = await response.Content.ReadAsStringAsync();
+      string content = await response.Content.ReadAsStringAsync();
 
-      using var jsonDoc = JsonDocument.Parse(content);
+      using JsonDocument jsonDoc = JsonDocument.Parse(content);
       return jsonDoc.RootElement.TryGetProperty("reactions", out _);
     }
     catch (Exception ex)
@@ -249,7 +249,11 @@ public class DiscordHelper : IDisposable, IDiscordHelper
   {
     if (!_disposed)
     {
-      if (disposing) _httpClient.Dispose();
+      if (disposing)
+      {
+        _httpClient.Dispose();
+      }
+
       _disposed = true;
     }
   }

@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,6 +8,8 @@ using NLog;
 using Shoko.Plugin.Abstractions;
 using Shoko.Plugin.Abstractions.DataModels;
 using Shoko.Plugin.WebhookDump.Apis;
+using Shoko.Plugin.WebhookDump.Models;
+using Shoko.Plugin.WebhookDump.Models.AniDB;
 using Shoko.Plugin.WebhookDump.Settings;
 using ISettingsProvider = Shoko.Plugin.WebhookDump.Settings.ISettingsProvider;
 
@@ -35,11 +35,11 @@ public class WebhookDump : IPlugin
 
   public static void ConfigureServices(IServiceCollection services)
   {
-    services.AddSingleton<ISettingsProvider, SettingsProvider>();
-    services.AddScoped<ISettings, CustomSettings>();
-    services.AddSingleton<IShokoHelper, ShokoHelper>();
-    services.AddSingleton<IDiscordHelper, DiscordHelper>();
-    services.AddSingleton<IMessageTracker, MessageTracker>();
+    _ = services.AddSingleton<ISettingsProvider, SettingsProvider>()
+                .AddScoped<ISettings, CustomSettings>()
+                .AddSingleton<IShokoHelper, ShokoHelper>()
+                .AddSingleton<IDiscordHelper, DiscordHelper>()
+                .AddSingleton<IMessageTracker, MessageTracker>();
   }
 
   public WebhookDump(IShokoEventHandler eventHandler, ISettingsProvider settingsProvider, IShokoHelper shokoHelper, IDiscordHelper discordHelper, IMessageTracker messageTracker)
@@ -64,24 +64,24 @@ public class WebhookDump : IPlugin
   public void Load()
   {
     _logger.Info($"Loaded (custom) settings without a string representation: {_settings}");
-    #region TestData
-    _ = "{\"id\":\"1092536396230705152\",\"type\":0,\"content\":\"\",\"channel_id\":\"1058301714924589096\",\"author\":{\"bot\":true,\"id\":\"1058302498122760233\",\"username\":\"Shoko\",\"avatar\":\"ef2254e105a3d1d4a9bfd6ad6c0935d8\",\"discriminator\":\"0000\"},\"attachments\":[],\"embeds\":[{\"type\":\"rich\",\"url\":\"http://localhost:8111/webui/utilities/unrecognized/files\",\"title\":\"[SuPlease] N1 - 12 80p) [D08C0F8D].mkv\",\"description\":\"The above file has been found by Shoko Server but could not be matched against AniDB. The file has now been dumped with AVDump, result as below.\",\"color\":3900150,\"fields\":[{\"name\":\"ED2K:\",\"value\":\"ed2k://|file|[SuPlease] N1 - 12 80p) [D08C0F8D].mkv|378382638|7601386EB3885661D5BFD370E7612E2D|/\",\"inline\":false},{\"name\":\"AniDB Link\",\"value\":\"[Fate/Stay Night](https://anidb.net/anime/3348/release/add)\",\"inline\":true},{\"name\":\"AniDB Link\",\"value\":\"[K-On!](https://anidb.net/anime/6257/release/add)\",\"inline\":true},{\"name\":\"AniDB Link\",\"value\":\"[City Hunter](https://anidb.net/anime/942/release/add)\",\"inline\":true}] }],\"mentions\":[],\"mention_roles\":[],\"pinned\":false,\"mention_everyone\":false,\"tts\":false,\"timestamp\":\"2023-04-03T19:49:35.206000+00:00\",\"edited_timestamp\":null,\"flags\":0,\"components\":[],\"webhook_id\":\"1058302498122760233\"}";
-    #endregion
   }
 
   private async void OnFileNotMatched(object sender, FileNotMatchedEventArgs fileNotMatchedEvent)
   {
-    var fileInfo = fileNotMatchedEvent.FileInfo;
-    if (!IsProbablyAnime(fileInfo)) return;
+    IVideoFile fileInfo = fileNotMatchedEvent.FileInfo;
+    if (!IsProbablyAnime(fileInfo) || fileNotMatchedEvent.HasCrossReferences)
+    {
+      return;
+    }
 
-    var matchAttempts = fileNotMatchedEvent.AutoMatchAttempts;
+    int matchAttempts = fileNotMatchedEvent.AutoMatchAttempts;
 
     if (matchAttempts == 1)
     {
       try
       {
-        seenFiles.Add(fileInfo.VideoFileID);
-        var dumpResult = await _shokoHelper.DumpFile(fileInfo);
+        _ = seenFiles.Add(fileInfo.VideoFileID);
+        AVDumpResult dumpResult = await _shokoHelper.DumpFile(fileInfo);
 
         if (_settings.Shoko.AutomaticMatch.Enabled)
         {
@@ -89,12 +89,15 @@ public class WebhookDump : IPlugin
         }
 
         // Exit now if not using webhooks
-        if (!_settings.Webhook.Enabled) return;
+        if (!_settings.Webhook.Enabled)
+        {
+          return;
+        }
 
-        var searchResults = await _shokoHelper.MatchTitle(fileInfo);
+        AniDBSearchResult searchResults = await _shokoHelper.MatchTitle(fileInfo);
 
-        var messageId = await _discordHelper.SendWebhook(fileInfo, dumpResult, searchResults);
-        _messageTracker.TryAddMessage(fileInfo.VideoFileID, messageId);
+        string messageId = await _discordHelper.SendWebhook(fileInfo, dumpResult, searchResults);
+        _ = _messageTracker.TryAddMessage(fileInfo.VideoFileID, messageId);
       }
       catch (Exception ex)
       {
@@ -107,7 +110,11 @@ public class WebhookDump : IPlugin
     {
       try
       {
-        if (!seenFiles.Contains(fileInfo.VideoFileID)) return;
+        if (!seenFiles.Contains(fileInfo.VideoFileID))
+        {
+          return;
+        }
+
         _ = Task.Run(() => _shokoHelper.ScanFile(fileInfo, matchAttempts)).ConfigureAwait(false);
       }
       catch (Exception ex)
@@ -120,20 +127,27 @@ public class WebhookDump : IPlugin
 
   private async void OnFileMatched(object sender, FileMatchedEventArgs fileMatchedEvent)
   {
-    var fileInfo = fileMatchedEvent.FileInfo;
-    var animeInfo = fileMatchedEvent.AnimeInfo.FirstOrDefault();
-    var episodeInfo = fileMatchedEvent.EpisodeInfo.FirstOrDefault();
+    IVideoFile fileInfo = fileMatchedEvent.FileInfo;
+    IAnime animeInfo = fileMatchedEvent.AnimeInfo.FirstOrDefault();
+    IEpisode episodeInfo = fileMatchedEvent.EpisodeInfo.FirstOrDefault();
 
-    if (!seenFiles.Remove(fileInfo.VideoFileID)) return;
-    if (!_messageTracker.TryGetValue(fileInfo.VideoFileID, out string messageId)) return;
+    if (!seenFiles.Remove(fileInfo.VideoFileID))
+    {
+      return;
+    }
+
+    if (!_messageTracker.TryGetValue(fileInfo.VideoFileID, out string messageId))
+    {
+      return;
+    }
 
     try
     {
-      var poster = await _shokoHelper.GetSeriesPoster(animeInfo);
-      var imageStream = await _shokoHelper.GetImageStream(poster);
+      AniDBPoster poster = await _shokoHelper.GetSeriesPoster(animeInfo);
+      System.IO.MemoryStream imageStream = await _shokoHelper.GetImageStream(poster);
 
       await _discordHelper.PatchWebhook(fileInfo, animeInfo, episodeInfo, imageStream, messageId);
-      _messageTracker.TryRemoveMessage(fileInfo.VideoFileID);
+      _ = _messageTracker.TryRemoveMessage(fileInfo.VideoFileID);
     }
     catch (Exception ex)
     {
@@ -143,7 +157,7 @@ public class WebhookDump : IPlugin
 
   private static bool IsProbablyAnime(IVideoFile file)
   {
-    var regex = new Regex(@"^(\[[^]]+\]).+\.mkv$");
+    Regex regex = new(@"^(\[[^]]+\]).+\.mkv$");
     return file.FileSize > 100_000_000
       && regex.IsMatch(file.Filename);
   }
