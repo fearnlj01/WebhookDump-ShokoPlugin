@@ -2,12 +2,12 @@ using System;
 using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using NLog;
 using Shoko.Plugin.Abstractions.DataModels;
-using Shoko.Plugin.WebhookDump.Models;
 using Shoko.Plugin.WebhookDump.Models.AniDB;
 using Shoko.Plugin.WebhookDump.Settings;
 
@@ -36,44 +36,32 @@ public class ShokoHelper : IDisposable, IShokoHelper
     };
   }
 
-  public async Task<AVDumpResult> DumpFile(IVideoFile file, int attemptCount = 1)
+  public async Task DumpFile(int fileId)
   {
-    int maxAttempts = 3;
     try
     {
-      HttpRequestMessage request = new(HttpMethod.Post, $"File/{file.VideoFileID}/AVDump");
+      var requestObject = new
+      {
+        FileIDs = new[] { fileId },
+        Priority = false
+      };
+      var json = new StringContent(JsonSerializer.Serialize(requestObject), Encoding.UTF8, "application/json");
 
-      HttpResponseMessage response = await _httpClient.SendAsync(request);
+      HttpResponseMessage response = await _httpClient.PostAsync("AVDump/DumpFiles", json);
       _ = response.EnsureSuccessStatusCode();
-
-      string content = await response.Content.ReadAsStringAsync();
-
-      return JsonSerializer.Deserialize<AVDumpResult>(content);
     }
-    catch (Exception ex) when (
-      ex is HttpRequestException or JsonException or ArgumentNullException or InvalidOperationException
-    )
+    catch (Exception ex)
     {
-      if (attemptCount < maxAttempts)
-      {
-        _logger.Warn($"Error automatically AVDumping file, attempt {attemptCount} of {maxAttempts} ('{file.Filename}')");
-        await Task.Delay(5000);
-        return await DumpFile(file, attemptCount + 1);
-      }
-      else
-      {
-        _logger.Warn($"Error automatically AVDumping file, attempt {attemptCount} of {maxAttempts} ('{file.Filename}')");
-        _logger.Warn("Returned exception {e}", ex);
-        return null;
-      }
+      _logger.Warn("Exception: {ex}", ex);
     }
   }
 
-  public async Task<AniDBSearchResult> MatchTitle(IVideoFile file)
+  public async Task<AniDBSearchResult> MatchTitle(string filename)
   {
     try
     {
-      string title = GetSafeTitleFromFile(file);
+      string title = GetSafeTitleFromFile(filename);
+
       HttpResponseMessage response = await _httpClient.GetAsync($"Series/AniDB/Search/{title}?includeTitles=false&pageSize=3&page=1");
       _ = response.EnsureSuccessStatusCode();
 
@@ -84,7 +72,7 @@ public class ShokoHelper : IDisposable, IShokoHelper
       ex is HttpRequestException or JsonException or ArgumentNullException or InvalidOperationException
     )
     {
-      _logger.Warn($"Unable to retrieve information about the file ('{file.Filename}') from AniDB");
+      _logger.Warn($"Unable to retrieve information about the file ('{filename}') from AniDB");
       _logger.Warn("Exception: {ex}", ex);
       return null;
     }
@@ -168,12 +156,12 @@ public class ShokoHelper : IDisposable, IShokoHelper
     }
   }
 
-  private static string GetSafeTitleFromFile(IVideoFile file)
+  private static string GetSafeTitleFromFile(string file)
   {
     string regex = @"^((\[.*?\]\s*)*)(.+(?= - ))(.*)$";
 
-    Match results = Regex.Match(file.Filename, regex);
-    string output = results.Success ? results.Groups[3].Value : file.Filename;
+    Match results = Regex.Match(file, regex);
+    string output = results.Success ? results.Groups[3].Value : file;
     return WebUtility.UrlEncode(output);
   }
 

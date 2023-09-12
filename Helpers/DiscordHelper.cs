@@ -40,7 +40,7 @@ public class DiscordHelper : IDisposable, IDiscordHelper
     BaseUrl = _settings.Webhook.Url;
   }
 
-  public async Task<string> SendWebhook(IVideoFile file, AVDumpResult dumpResult, AniDBSearchResult searchResult)
+  public async Task<string> SendWebhook(IVideoFile file, string dumpResult, AniDBSearchResult searchResult)
   {
     try
     {
@@ -94,7 +94,7 @@ public class DiscordHelper : IDisposable, IDiscordHelper
     }
   }
 
-  private Webhook GetUnmatchedWebhook(IVideoFile file, AVDumpResult dumpResult, AniDBSearchResult searchResult)
+  private Webhook GetUnmatchedWebhook(IVideoFile file, string dumpResult, AniDBSearchResult searchResult)
   {
     UriBuilder publicUrl = new(_settings.Shoko.PublicUrl)
     {
@@ -162,14 +162,14 @@ public class DiscordHelper : IDisposable, IDiscordHelper
     };
   }
 
-  private static List<WebhookField> GetUnmatchedFields(AVDumpResult dumpResult, AniDBSearchResult searchResult)
+  private static List<WebhookField> GetUnmatchedFields(string dumpResult, AniDBSearchResult searchResult)
   {
     List<WebhookField> output = new()
     {
       new WebhookField()
       {
         Name = "ED2K",
-        Value = $"{dumpResult.Ed2k}"
+        Value = $"{dumpResult}"
       }
     };
 

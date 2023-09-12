@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -8,7 +8,6 @@ using NLog;
 using Shoko.Plugin.Abstractions;
 using Shoko.Plugin.Abstractions.DataModels;
 using Shoko.Plugin.WebhookDump.Apis;
-using Shoko.Plugin.WebhookDump.Models;
 using Shoko.Plugin.WebhookDump.Models.AniDB;
 using Shoko.Plugin.WebhookDump.Settings;
 using ISettingsProvider = Shoko.Plugin.WebhookDump.Settings.ISettingsProvider;
@@ -31,7 +30,7 @@ public class WebhookDump : IPlugin
 
   private readonly IMessageTracker _messageTracker;
 
-  private readonly HashSet<int> seenFiles;
+  private readonly FileTracker fileTracker;
 
   public static void ConfigureServices(IServiceCollection services)
   {
@@ -46,11 +45,12 @@ public class WebhookDump : IPlugin
   {
     eventHandler.FileNotMatched += OnFileNotMatched;
     eventHandler.FileMatched += OnFileMatched;
+    eventHandler.AVDumpEvent += OnAVDumpEvent;
 
     _settingsProvider = settingsProvider;
     _settings = _settingsProvider.GetSettings();
 
-    seenFiles = new();
+    fileTracker = new();
 
     _shokoHelper = shokoHelper;
     _discordHelper = discordHelper;
@@ -66,62 +66,36 @@ public class WebhookDump : IPlugin
     _logger.Info($"Loaded (custom) settings without a string representation: {_settings}");
   }
 
-  private async void OnFileNotMatched(object sender, FileNotMatchedEventArgs fileNotMatchedEvent)
+  public void OnFileNotMatched(object sender, FileNotMatchedEventArgs fileNotMatchedEvent)
   {
     IVideoFile fileInfo = fileNotMatchedEvent.FileInfo;
+    int matchAttempts = fileNotMatchedEvent.AutoMatchAttempts;
+
     if (!IsProbablyAnime(fileInfo) || fileNotMatchedEvent.HasCrossReferences)
     {
       return;
     }
 
-    int matchAttempts = fileNotMatchedEvent.AutoMatchAttempts;
-
     if (matchAttempts == 1)
     {
-      try
-      {
-        _ = seenFiles.Add(fileInfo.VideoFileID);
-        AVDumpResult dumpResult = await _shokoHelper.DumpFile(fileInfo);
-
-        if (_settings.Shoko.AutomaticMatch.Enabled)
-        {
-          _ = Task.Run(() => _shokoHelper.ScanFile(fileInfo, matchAttempts)).ConfigureAwait(false);
-        }
-
-        // Exit now if not using webhooks
-        if (!_settings.Webhook.Enabled)
-        {
-          return;
-        }
-
-        AniDBSearchResult searchResults = await _shokoHelper.MatchTitle(fileInfo);
-
-        string messageId = await _discordHelper.SendWebhook(fileInfo, dumpResult, searchResults);
-        _ = _messageTracker.TryAddMessage(fileInfo.VideoFileID, messageId);
-      }
-      catch (Exception ex)
-      {
-        _logger.Warn("Exception: {ex}", ex);
-      }
-      return;
+      fileTracker.TryAddFile(fileInfo);
+      _ = Task.Run(() => _shokoHelper.DumpFile(fileInfo.VideoFileID)).ConfigureAwait(false); ;
     }
 
-    if (matchAttempts <= _settings.Shoko.AutomaticMatch.MaxAttempts && _settings.Shoko.AutomaticMatch.Enabled)
+    if (
+      matchAttempts <= _settings.Shoko.AutomaticMatch.MaxAttempts
+      && _settings.Shoko.AutomaticMatch.Enabled
+      && fileTracker.Contains(fileInfo.VideoFileID)
+    )
     {
       try
       {
-        if (!seenFiles.Contains(fileInfo.VideoFileID))
-        {
-          return;
-        }
-
         _ = Task.Run(() => _shokoHelper.ScanFile(fileInfo, matchAttempts)).ConfigureAwait(false);
       }
       catch (Exception ex)
       {
         _logger.Warn("Exception: {ex}", ex);
       }
-      return;
     }
   }
 
@@ -131,7 +105,7 @@ public class WebhookDump : IPlugin
     IAnime animeInfo = fileMatchedEvent.AnimeInfo.FirstOrDefault();
     IEpisode episodeInfo = fileMatchedEvent.EpisodeInfo.FirstOrDefault();
 
-    if (!seenFiles.Remove(fileInfo.VideoFileID))
+    if (!fileTracker.TryRemoveFile(fileInfo.VideoFileID))
     {
       return;
     }
@@ -144,7 +118,7 @@ public class WebhookDump : IPlugin
     try
     {
       AniDBPoster poster = await _shokoHelper.GetSeriesPoster(animeInfo);
-      System.IO.MemoryStream imageStream = await _shokoHelper.GetImageStream(poster);
+      MemoryStream imageStream = await _shokoHelper.GetImageStream(poster);
 
       await _discordHelper.PatchWebhook(fileInfo, animeInfo, episodeInfo, imageStream, messageId);
       _ = _messageTracker.TryRemoveMessage(fileInfo.VideoFileID);
@@ -152,6 +126,29 @@ public class WebhookDump : IPlugin
     catch (Exception ex)
     {
       _logger.Warn("Exception: {ex}", ex);
+    }
+  }
+
+  private async void OnAVDumpEvent(object sender, AVDumpEventArgs dumpEvent)
+  {
+    if (dumpEvent.Type != AVDumpEventType.Success)
+    {
+      return;
+    }
+
+    for (int i = 0; i < dumpEvent.VideoIDs.Count; i++)
+    {
+      var ed2k = dumpEvent.ED2Ks[i];
+      var fileId = dumpEvent.VideoIDs[i];
+
+      if (!fileTracker.TryGetValue(fileId, out var file)) {
+        continue;
+      }
+
+      AniDBSearchResult searchResult = await _shokoHelper.MatchTitle(file.Filename);
+      string messageId = await _discordHelper.SendWebhook(file, ed2k, searchResult);
+
+      _ = _messageTracker.TryAddMessage(file.VideoFileID, messageId);
     }
   }
 

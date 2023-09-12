@@ -23,9 +23,13 @@
     <PackageReference Include="NLog" Version="5.1.2">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Shoko.Plugin.Abstractions" Version="2.4.1">
+    <!-- <PackageReference Include="Shoko.Plugin.Abstractions" Version="2.4.1">
       <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
+    </PackageReference> -->
+    <Reference Include="Shoko.Plugin.Abstractions" Version="2.4.1-alpha1">
+      <PrivateAssets>all</PrivateAssets>
+      <HintPath>c:\Program Files (x86)\Shoko\Shoko Server\Shoko.Plugin.Abstractions.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>

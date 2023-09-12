@@ -10,6 +10,6 @@ public interface IDiscordHelper
 {
   void Dispose();
   Task PatchWebhook(IVideoFile file, IAnime anime, IEpisode episode, MemoryStream imageStream, string messageId);
-  Task<string> SendWebhook(IVideoFile file, AVDumpResult dumpResult, AniDBSearchResult searchResult);
+  Task<string> SendWebhook(IVideoFile file, string dumpResult, AniDBSearchResult searchResult);
   Task<bool> GetMessageReactionBool(string messageId);
 }
