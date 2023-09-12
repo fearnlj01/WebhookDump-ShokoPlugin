@@ -14,5 +14,6 @@
     ".gitignore": true,
     ".editorconfig": true,
     ".git-blame-ignore-revs": true
-  }
+  },
+  "dotnet.defaultSolution": "WebhookDump.sln"
 }
