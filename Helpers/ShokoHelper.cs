@@ -62,7 +62,7 @@ public class ShokoHelper : IDisposable, IShokoHelper
     {
       string title = GetSafeTitleFromFile(filename);
 
-      HttpResponseMessage response = await _httpClient.GetAsync($"Series/AniDB/Search/{title}?includeTitles=false&pageSize=3&page=1");
+      HttpResponseMessage response = await _httpClient.GetAsync($"Series/AniDB/Search?query={title}&includeTitles=false&pageSize=3&page=1");
       _ = response.EnsureSuccessStatusCode();
 
       string content = await response.Content.ReadAsStringAsync();
