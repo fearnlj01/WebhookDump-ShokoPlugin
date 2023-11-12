@@ -5,12 +5,12 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using NLog;
 using Shoko.Plugin.Abstractions.DataModels;
-using Shoko.Plugin.WebhookDump.Models;
 using Shoko.Plugin.WebhookDump.Models.AniDB;
 using Shoko.Plugin.WebhookDump.Models.Discord;
 using Shoko.Plugin.WebhookDump.Settings;
@@ -45,14 +45,13 @@ public class DiscordHelper : IDisposable, IDiscordHelper
     try
     {
       Webhook webhook = GetUnmatchedWebhook(file, dumpResult, searchResult);
-      string json = JsonSerializer.Serialize(webhook, _options);
 
-      HttpResponseMessage response = await _httpClient.PostAsync($"{BaseUrl}?wait=true", new StringContent(json, Encoding.UTF8, "application/json"));
+      HttpResponseMessage response = await _httpClient.PostAsJsonAsync($"{BaseUrl}?wait=true", webhook, _options);
       _ = response.EnsureSuccessStatusCode();
 
-      string content = await response.Content.ReadAsStringAsync();
+      using Stream responseStream = await response.Content.ReadAsStreamAsync();
+      using JsonDocument jsonDoc = await JsonDocument.ParseAsync(responseStream);
 
-      using JsonDocument jsonDoc = JsonDocument.Parse(content);
       return jsonDoc.RootElement.GetProperty("id").GetString();
     }
     catch (Exception ex)
@@ -138,7 +137,7 @@ public class DiscordHelper : IDisposable, IDiscordHelper
         new() {
           Title = file.Filename,
           Url = publicUrl.Uri.ToString(),
-          Description = _settings.Webhook.Matched.EmbedText,
+          Description = _settings.Webhook.Matched.EmbedText + $"\nFile matched: <t:{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}:R>",
           Color = Convert.ToInt32(_settings.Webhook.Matched.EmbedColor.TrimStart('#'), 16),
           Fields = GetMatchedFields(anime, episode),
           Thumbnail = new WebhookImage

@@ -84,9 +84,7 @@ public class ShokoHelper : IDisposable, IShokoHelper
     {
       await Task.Delay(TimeSpan.FromMinutes(autoMatchAttempts * 5));
 
-      HttpRequestMessage request = new(HttpMethod.Post, $"File/{file.VideoFileID}/Rescan");
-
-      HttpResponseMessage response = await _httpClient.SendAsync(request);
+      HttpResponseMessage response = await _httpClient.PostAsync($"File/{file.VideoFileID}/Rescan", null);
       _ = response.EnsureSuccessStatusCode();
     }
     catch (HttpRequestException ex)
@@ -100,9 +98,7 @@ public class ShokoHelper : IDisposable, IShokoHelper
   {
     try
     {
-      HttpRequestMessage request = new(HttpMethod.Post, $"File/{fileId}/Rescan");
-
-      HttpResponseMessage response = await _httpClient.SendAsync(request);
+      HttpResponseMessage response = await _httpClient.PostAsync($"File/{fileId}/Rescan", null);
       _ = response.EnsureSuccessStatusCode();
     }
     catch (HttpRequestException ex)
@@ -119,9 +115,9 @@ public class ShokoHelper : IDisposable, IShokoHelper
       HttpResponseMessage response = await _httpClient.GetAsync($"Series/AniDB/{anime.AnimeID}/Series?includeDataFrom=AniDB");
       _ = response.EnsureSuccessStatusCode();
 
-      string content = await response.Content.ReadAsStringAsync();
-
-      using JsonDocument jsonDoc = JsonDocument.Parse(content);
+      using Stream responseStream = await response.Content.ReadAsStreamAsync();
+      using JsonDocument jsonDoc = await JsonDocument.ParseAsync(responseStream);
+      
       string image = jsonDoc.RootElement.GetProperty("Images").GetProperty("Posters")[0].GetRawText();
       return JsonSerializer.Deserialize<AniDBPoster>(image);
     }

@@ -1,7 +1,6 @@
 using System.IO;
 using System.Threading.Tasks;
 using Shoko.Plugin.Abstractions.DataModels;
-using Shoko.Plugin.WebhookDump.Models;
 using Shoko.Plugin.WebhookDump.Models.AniDB;
 
 namespace Shoko.Plugin.WebhookDump.Apis;
