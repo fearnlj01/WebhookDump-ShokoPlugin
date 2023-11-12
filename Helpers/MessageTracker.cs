@@ -26,8 +26,8 @@ public class MessageTracker : IMessageTracker, IDisposable
     _discordHelper = discordHelper;
     _shokoHelper = shokoHelper;
 
-    _messageSet = [];
-    _processedSet = [];
+    _messageSet = new();
+    _processedSet = new();
 
     if (_settings.Shoko.AutomaticMatch.WatchReactions)
     {

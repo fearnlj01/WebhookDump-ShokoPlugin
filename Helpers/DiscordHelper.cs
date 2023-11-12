@@ -66,7 +66,7 @@ public class DiscordHelper : IDisposable, IDiscordHelper
   {
     try
     {
-      MultipartFormDataContent form = [];
+      MultipartFormDataContent form = new();
 
       Webhook webhook = GetMatchedWebhook(file, anime, episode);
       string json = JsonSerializer.Serialize(webhook, _options);
@@ -161,13 +161,13 @@ public class DiscordHelper : IDisposable, IDiscordHelper
   private static List<WebhookField> GetUnmatchedFields(string dumpResult, AniDBSearchResult searchResult)
   {
     List<WebhookField> output =
-    [
+    new() {
       new WebhookField()
       {
         Name = "ED2K",
         Value = $"{dumpResult}"
       }
-    ];
+    };
 
     foreach (AniDBSeries result in searchResult.List)
     {
@@ -187,8 +187,7 @@ public class DiscordHelper : IDisposable, IDiscordHelper
     AnimeTitle episodeTitle = episode.Titles.FirstOrDefault(t => t.Language == TitleLanguage.English);
     string episodeNumber = episode.Number.ToString("00", CultureInfo.InvariantCulture);
 
-    return
-    [
+    return new() {
       new WebhookField()
       {
         Name = "Anime",
@@ -201,7 +200,7 @@ public class DiscordHelper : IDisposable, IDiscordHelper
         Value = $"{episodeNumber} - [{episodeTitle.Title}](https://anidb.net/episode/{episode.EpisodeID})",
         Inline = true
       },
-    ];
+    };
   }
 
   private static WebhookFooter GetFooter(IVideoFile file)
