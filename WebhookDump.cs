@@ -94,7 +94,7 @@ public class WebhookDump : IPlugin
       }
       catch (Exception ex)
       {
-        _logger.Warn("Exception: {ex}", ex);
+        _logger.Debug("Exception: {ex}", ex);
       }
     }
   }
@@ -125,7 +125,7 @@ public class WebhookDump : IPlugin
     }
     catch (Exception ex)
     {
-      _logger.Warn("Exception: {ex}", ex);
+      _logger.Debug("Exception: {ex}", ex);
     }
   }
 

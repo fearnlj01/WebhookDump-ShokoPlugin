@@ -1,8 +1,9 @@
 using System;
+using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Net.Http;
-using System.Text;
+using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -40,19 +41,19 @@ public class ShokoHelper : IDisposable, IShokoHelper
   {
     try
     {
-      var requestObject = new
+      _logger.Info(CultureInfo.InvariantCulture, "Plugin triggering automatic AVDump (fileId={fileId})", fileId);
+
+      HttpResponseMessage response = await _httpClient.PostAsJsonAsync("AVDump/DumpFiles", new
       {
         FileIDs = new[] { fileId },
         Priority = false
-      };
-      var json = new StringContent(JsonSerializer.Serialize(requestObject), Encoding.UTF8, "application/json");
-
-      HttpResponseMessage response = await _httpClient.PostAsync("AVDump/DumpFiles", json);
+      });
       _ = response.EnsureSuccessStatusCode();
     }
     catch (Exception ex)
     {
-      _logger.Warn("Exception: {ex}", ex);
+      _logger.Warn(CultureInfo.InvariantCulture, "Failed to process AVDump request (fileId={fileId})", fileId);
+      _logger.Debug("Exception: {ex}", ex);
     }
   }
 
@@ -72,8 +73,8 @@ public class ShokoHelper : IDisposable, IShokoHelper
       ex is HttpRequestException or JsonException or ArgumentNullException or InvalidOperationException
     )
     {
-      _logger.Warn($"Unable to retrieve information about the file ('{filename}') from AniDB");
-      _logger.Warn("Exception: {ex}", ex);
+      _logger.Warn(CultureInfo.InvariantCulture, "Unable to retrieve title information for a file (fileName='{filename}') from AniDB", filename);
+      _logger.Debug("Exception: {ex}", ex);
       return null;
     }
   }
@@ -83,6 +84,8 @@ public class ShokoHelper : IDisposable, IShokoHelper
     try
     {
       await Task.Delay(TimeSpan.FromMinutes(autoMatchAttempts * 5));
+
+      _logger.Info(CultureInfo.InvariantCulture, "Requesting file rescan (fileId={fileID}, matchAttempts={matchAttempts})", file.VideoFileID, autoMatchAttempts);
 
       HttpResponseMessage response = await _httpClient.PostAsync($"File/{file.VideoFileID}/Rescan", null);
       _ = response.EnsureSuccessStatusCode();
@@ -98,12 +101,14 @@ public class ShokoHelper : IDisposable, IShokoHelper
   {
     try
     {
+      _logger.Info(CultureInfo.InvariantCulture, "Requesting file rescan (fileId={fileID})", fileId);
+
       HttpResponseMessage response = await _httpClient.PostAsync($"File/{fileId}/Rescan", null);
       _ = response.EnsureSuccessStatusCode();
     }
     catch (HttpRequestException ex)
     {
-      _logger.Warn($"Unable to scan file by ID ('{fileId}')");
+      _logger.Warn(CultureInfo.InvariantCulture, "Unable to scan file by ID ('{fileId}')", fileId);
       _logger.Warn("Exception: ", ex);
     }
   }
@@ -117,14 +122,14 @@ public class ShokoHelper : IDisposable, IShokoHelper
 
       using Stream responseStream = await response.Content.ReadAsStreamAsync();
       using JsonDocument jsonDoc = await JsonDocument.ParseAsync(responseStream);
-      
+
       string image = jsonDoc.RootElement.GetProperty("Images").GetProperty("Posters")[0].GetRawText();
       return JsonSerializer.Deserialize<AniDBPoster>(image);
     }
     catch (HttpRequestException ex)
     {
-      _logger.Warn($"Poster could not be downloaded for series ID: {anime.AnimeID}");
-      _logger.Warn("Exception: {ex}", ex);
+      _logger.Warn(CultureInfo.InvariantCulture, "Poster could not be downloaded for series ID: {animeId}", anime.AnimeID);
+      _logger.Debug("Exception: {ex}", ex);
       return null;
     }
   }
@@ -146,8 +151,8 @@ public class ShokoHelper : IDisposable, IShokoHelper
     }
     catch (HttpRequestException ex)
     {
-      _logger.Warn($"Could not retreieve image for the primary {poster.Source} {poster.Type} of {poster.ID}");
-      _logger.Warn("Exception: {ex}", ex);
+      _logger.Warn(CultureInfo.InvariantCulture, "Could not retreieve image for the primary {poster.Source} {poster.Type} of {poster.ID}", poster.Source, poster.Type, poster.ID);
+      _logger.Debug("Exception: {ex}", ex);
       return null;
     }
   }

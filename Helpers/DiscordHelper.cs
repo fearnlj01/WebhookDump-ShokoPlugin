@@ -46,6 +46,8 @@ public class DiscordHelper : IDisposable, IDiscordHelper
     {
       Webhook webhook = GetUnmatchedWebhook(file, dumpResult, searchResult);
 
+      _logger.Info(CultureInfo.InvariantCulture, "Sending Discord webhook (fileId={fileId})", file.VideoFileID);
+
       HttpResponseMessage response = await _httpClient.PostAsJsonAsync($"{BaseUrl}?wait=true", webhook, _options);
       _ = response.EnsureSuccessStatusCode();
 
@@ -57,13 +59,15 @@ public class DiscordHelper : IDisposable, IDiscordHelper
     catch (Exception ex)
     {
       // TODO: More logging
-      _logger.Warn("Exception: {ex}", ex);
+      _logger.Debug("Exception: {ex}", ex);
       return null;
     }
   }
 
   public async Task PatchWebhook(IVideoFile file, IAnime anime, IEpisode episode, MemoryStream imageStream, string messageId)
   {
+    _logger.Info(CultureInfo.InvariantCulture, "Attempting to update Discord message (fileId={fileId}, messageId={messageId})", file.VideoFileID, messageId);
+
     try
     {
       MultipartFormDataContent form = new();
@@ -89,7 +93,7 @@ public class DiscordHelper : IDisposable, IDiscordHelper
     catch (Exception ex)
     {
       // TODO: More logging
-      _logger.Warn("Exception: {ex}", ex);
+      _logger.Debug("Exception: {ex}", ex);
     }
   }
 
