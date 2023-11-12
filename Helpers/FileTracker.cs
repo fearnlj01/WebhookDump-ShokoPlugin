@@ -9,7 +9,7 @@ public class FileTracker
 
   public FileTracker()
   {
-    _fileSet = new();
+    _fileSet = [];
   }
 
   public bool TryAddFile(IVideoFile fileInfo)

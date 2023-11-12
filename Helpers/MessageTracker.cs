@@ -26,8 +26,8 @@ public class MessageTracker : IMessageTracker, IDisposable
     _discordHelper = discordHelper;
     _shokoHelper = shokoHelper;
 
-    _messageSet = new();
-    _processedSet = new();
+    _messageSet = [];
+    _processedSet = [];
 
     if (_settings.Shoko.AutomaticMatch.WatchReactions)
     {
@@ -70,7 +70,7 @@ public class MessageTracker : IMessageTracker, IDisposable
         continue;
       }
 
-      if (await _discordHelper.GetMessageReactionBool(message.Value))
+      if (await _discordHelper.GetMessageReactionState(message.Value))
       {
         _logger.Info($"Triggering rescan for (fileId={message.Key}, messageId={message.Value})");
         _ = Task.Run(() => _shokoHelper.ScanFileById(message.Key)).ConfigureAwait(false);

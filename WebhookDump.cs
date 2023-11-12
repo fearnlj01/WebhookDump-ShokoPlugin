@@ -30,7 +30,7 @@ public class WebhookDump : IPlugin
 
   private readonly IMessageTracker _messageTracker;
 
-  private readonly FileTracker fileTracker;
+  private readonly FileTracker _fileTracker;
 
   public static void ConfigureServices(IServiceCollection services)
   {
@@ -50,7 +50,7 @@ public class WebhookDump : IPlugin
     _settingsProvider = settingsProvider;
     _settings = _settingsProvider.GetSettings();
 
-    fileTracker = new();
+    _fileTracker = new();
 
     _shokoHelper = shokoHelper;
     _discordHelper = discordHelper;
@@ -66,7 +66,7 @@ public class WebhookDump : IPlugin
     _logger.Info($"Loaded (custom) settings without a string representation: {_settings}");
   }
 
-  public void OnFileNotMatched(object sender, FileNotMatchedEventArgs fileNotMatchedEvent)
+  private void OnFileNotMatched(object sender, FileNotMatchedEventArgs fileNotMatchedEvent)
   {
     IVideoFile fileInfo = fileNotMatchedEvent.FileInfo;
     int matchAttempts = fileNotMatchedEvent.AutoMatchAttempts;
@@ -78,14 +78,14 @@ public class WebhookDump : IPlugin
 
     if (matchAttempts == 1)
     {
-      fileTracker.TryAddFile(fileInfo);
+      _fileTracker.TryAddFile(fileInfo);
       _ = Task.Run(() => _shokoHelper.DumpFile(fileInfo.VideoFileID)).ConfigureAwait(false); ;
     }
 
     if (
       matchAttempts <= _settings.Shoko.AutomaticMatch.MaxAttempts
       && _settings.Shoko.AutomaticMatch.Enabled
-      && fileTracker.Contains(fileInfo.VideoFileID)
+      && _fileTracker.Contains(fileInfo.VideoFileID)
     )
     {
       try
@@ -105,7 +105,7 @@ public class WebhookDump : IPlugin
     IAnime animeInfo = fileMatchedEvent.AnimeInfo.FirstOrDefault();
     IEpisode episodeInfo = fileMatchedEvent.EpisodeInfo.FirstOrDefault();
 
-    if (!fileTracker.TryRemoveFile(fileInfo.VideoFileID))
+    if (!_fileTracker.TryRemoveFile(fileInfo.VideoFileID))
     {
       return;
     }
@@ -131,7 +131,7 @@ public class WebhookDump : IPlugin
 
   private async void OnAVDumpEvent(object sender, AVDumpEventArgs dumpEvent)
   {
-    if (dumpEvent.Type != AVDumpEventType.Success)
+    if (dumpEvent.Type != AVDumpEventType.Success || !_settings.Webhook.Enabled)
     {
       return;
     }
@@ -141,7 +141,7 @@ public class WebhookDump : IPlugin
       var ed2k = dumpEvent.ED2Ks[i];
       var fileId = dumpEvent.VideoIDs[i];
 
-      if (!fileTracker.TryGetValue(fileId, out var file)) {
+      if (!_fileTracker.TryGetValue(fileId, out var file)) {
         continue;
       }
 

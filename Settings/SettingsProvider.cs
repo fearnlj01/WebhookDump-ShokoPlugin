@@ -74,7 +74,7 @@ public class SettingsProvider : ISettingsProvider
 
   private static void ValidateSettings(ISettings settings)
   {
-    List<ValidationResult> validationResults = new();
+    List<ValidationResult> validationResults = [];
     ValidationContext validationContext = new(settings);
 
     bool isValid = Validator.TryValidateObject(
