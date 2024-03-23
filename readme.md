@@ -123,11 +123,19 @@ The default settings file that will be created is as per the below (albeit witho
 
 ## Getting the API key
 
-There's a hard way, and an easy way to get this. I'd recommend the easy cross-platform way, browsing to
+There are three methods you can employ to get an API Key. 
+
+### 1. Web UI (Recommended)
+Log into the Web UI and navigate to Settings. Here, you should see a menu option called "API Keys" which will 
+allow you to create a new one for the plugin. Input a name, click "Generate," and copy the provided key.
+
+### 2. Swagger
+Navigate to the following address in your webrowser,
 `http://{your-shoko-ip-here}:8111/swagger/index.html`. From here you can select the first option, `/api/auth`, and
 choose to `Try it out`. No awards are provided for submitting this correctly, but you do get the required API key to
 move forwards.
 
+### 3. CLI
 For those that don't like taking the easy road in life, the command line instructions on how to get an API key are as
 below.
 
