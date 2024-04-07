@@ -14,7 +14,7 @@ public class FileTracker
 
   public bool TryAddFile(IVideoFile fileInfo)
   {
-    return _fileSet.TryAdd(fileInfo.VideoFileID, fileInfo);
+    return _fileSet.TryAdd(fileInfo.VideoID, fileInfo);
   }
 
   public bool TryRemoveFile(int fileId)
