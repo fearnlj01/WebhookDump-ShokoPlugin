@@ -46,7 +46,7 @@ public class DiscordHelper : IDisposable, IDiscordHelper
     {
       Webhook webhook = GetUnmatchedWebhook(file, dumpResult, searchResult);
 
-      _logger.Info(CultureInfo.InvariantCulture, "Sending Discord webhook (fileId={fileId})", file.VideoFileID);
+      _logger.Info(CultureInfo.InvariantCulture, "Sending Discord webhook (fileId={fileId})", file.VideoID);
 
       HttpResponseMessage response = await _httpClient.PostAsJsonAsync($"{BaseUrl}?wait=true", webhook, _options);
       _ = response.EnsureSuccessStatusCode();
@@ -66,7 +66,7 @@ public class DiscordHelper : IDisposable, IDiscordHelper
 
   public async Task PatchWebhook(IVideoFile file, IAnime anime, IEpisode episode, MemoryStream imageStream, string messageId)
   {
-    _logger.Info(CultureInfo.InvariantCulture, "Attempting to update Discord message (fileId={fileId}, messageId={messageId})", file.VideoFileID, messageId);
+    _logger.Info(CultureInfo.InvariantCulture, "Attempting to update Discord message (fileId={fileId}, messageId={messageId})", file.VideoID, messageId);
 
     try
     {
@@ -113,7 +113,7 @@ public class DiscordHelper : IDisposable, IDiscordHelper
       Embeds = new WebhookEmbed[]
       {
         new() {
-          Title = file.Filename,
+          Title = file.FileName,
           Url = publicUrl.Uri.ToString(),
           Description = _settings.Webhook.Unmatched.EmbedText,
           Color = Convert.ToInt32(_settings.Webhook.Unmatched.EmbedColor.TrimStart('#'), 16),
@@ -139,7 +139,7 @@ public class DiscordHelper : IDisposable, IDiscordHelper
       Embeds = new WebhookEmbed[]
       {
         new() {
-          Title = file.Filename,
+          Title = file.FileName,
           Url = publicUrl.Uri.ToString(),
           Description = _settings.Webhook.Matched.EmbedText + $"\nFile matched: <t:{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}:R>",
           Color = Convert.ToInt32(_settings.Webhook.Matched.EmbedColor.TrimStart('#'), 16),
@@ -189,19 +189,19 @@ public class DiscordHelper : IDisposable, IDiscordHelper
   private static List<WebhookField> GetMatchedFields(IAnime series, IEpisode episode)
   {
     AnimeTitle episodeTitle = episode.Titles.FirstOrDefault(t => t.Language == TitleLanguage.English);
-    string episodeNumber = episode.Number.ToString("00", CultureInfo.InvariantCulture);
+    string episodeNumber = episode.EpisodeNumber.ToString("00", CultureInfo.InvariantCulture);
 
     return new() {
       new WebhookField()
       {
         Name = "Anime",
-        Value = $"[{series.PreferredTitle}](https://anidb.net/anime/{series.AnimeID})",
+        Value = $"[{series.PreferredTitle}](https://anidb.net/anime/{series.ID})",
         Inline = true
       },
       new WebhookField()
       {
         Name = "Episode",
-        Value = $"{episodeNumber} - [{episodeTitle.Title}](https://anidb.net/episode/{episode.EpisodeID})",
+        Value = $"{episodeNumber} - [{episodeTitle.Title}](https://anidb.net/episode/{episode.ID})",
         Inline = true
       },
     };
@@ -211,7 +211,7 @@ public class DiscordHelper : IDisposable, IDiscordHelper
   {
     return new WebhookFooter()
     {
-      Text = $"File ID: {file.VideoFileID} | CRC: {file.Hashes.CRC}{(file.Filename.Contains($"[{file.Hashes.CRC}]") ? " | CRC in filename" : string.Empty)}"
+      Text = $"File ID: {file.VideoID} | CRC: {file.VideoInfo.Hashes.CRC}{(file.FileName.Contains($"[{file.VideoInfo.Hashes.CRC}]") ? " | CRC in filename" : string.Empty)}"
     };
   }
 

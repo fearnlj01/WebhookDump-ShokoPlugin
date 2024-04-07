@@ -79,13 +79,13 @@ public class WebhookDump : IPlugin
     if (matchAttempts == 1)
     {
       _fileTracker.TryAddFile(fileInfo);
-      _ = Task.Run(() => _shokoHelper.DumpFile(fileInfo.VideoFileID)).ConfigureAwait(false); ;
+      _ = Task.Run(() => _shokoHelper.DumpFile(fileInfo.VideoID)).ConfigureAwait(false); ;
     }
 
     if (
       matchAttempts <= _settings.Shoko.AutomaticMatch.MaxAttempts
       && _settings.Shoko.AutomaticMatch.Enabled
-      && _fileTracker.Contains(fileInfo.VideoFileID)
+      && _fileTracker.Contains(fileInfo.VideoID)
     )
     {
       try
@@ -102,15 +102,15 @@ public class WebhookDump : IPlugin
   private async void OnFileMatched(object sender, FileMatchedEventArgs fileMatchedEvent)
   {
     IVideoFile fileInfo = fileMatchedEvent.FileInfo;
-    IAnime animeInfo = fileMatchedEvent.AnimeInfo.FirstOrDefault();
-    IEpisode episodeInfo = fileMatchedEvent.EpisodeInfo.FirstOrDefault();
+    IAnime animeInfo = fileMatchedEvent.AnimeInfo[0];
+    IEpisode episodeInfo = fileMatchedEvent.EpisodeInfo[0];
 
-    if (!_fileTracker.TryRemoveFile(fileInfo.VideoFileID))
+    if (!_fileTracker.TryRemoveFile(fileInfo.VideoID))
     {
       return;
     }
 
-    if (!_messageTracker.TryGetValue(fileInfo.VideoFileID, out string messageId))
+    if (!_messageTracker.TryGetValue(fileInfo.VideoID, out string messageId))
     {
       return;
     }
@@ -121,7 +121,7 @@ public class WebhookDump : IPlugin
       MemoryStream imageStream = await _shokoHelper.GetImageStream(poster);
 
       await _discordHelper.PatchWebhook(fileInfo, animeInfo, episodeInfo, imageStream, messageId);
-      _ = _messageTracker.TryRemoveMessage(fileInfo.VideoFileID);
+      _ = _messageTracker.TryRemoveMessage(fileInfo.VideoID);
     }
     catch (Exception ex)
     {
@@ -145,17 +145,17 @@ public class WebhookDump : IPlugin
         continue;
       }
 
-      AniDBSearchResult searchResult = await _shokoHelper.MatchTitle(file.Filename);
+      AniDBSearchResult searchResult = await _shokoHelper.MatchTitle(file.FileName);
       string messageId = await _discordHelper.SendWebhook(file, ed2k, searchResult);
 
-      _ = _messageTracker.TryAddMessage(file.VideoFileID, messageId);
+      _ = _messageTracker.TryAddMessage(file.VideoID, messageId);
     }
   }
 
   private static bool IsProbablyAnime(IVideoFile file)
   {
     Regex regex = new(@"^(\[[^]]+\]).+\.mkv$");
-    return file.FileSize > 100_000_000
-      && regex.IsMatch(file.Filename);
+    return file.Size > 100_000_000
+      && regex.IsMatch(file.FileName);
   }
 }

@@ -23,7 +23,7 @@
     <PackageReference Include="NLog" Version="5.1.2">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Shoko.Plugin.Abstractions" Version="2.5.0-alpha3">
+    <PackageReference Include="Shoko.Plugin.Abstractions" Version="3.0.0-alpha1">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
   </ItemGroup>

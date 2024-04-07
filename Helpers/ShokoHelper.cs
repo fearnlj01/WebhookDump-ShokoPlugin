@@ -85,14 +85,14 @@ public class ShokoHelper : IDisposable, IShokoHelper
     {
       await Task.Delay(TimeSpan.FromMinutes(autoMatchAttempts * 5));
 
-      _logger.Info(CultureInfo.InvariantCulture, "Requesting file rescan (fileId={fileID}, matchAttempts={matchAttempts})", file.VideoFileID, autoMatchAttempts);
+      _logger.Info(CultureInfo.InvariantCulture, "Requesting file rescan (fileId={fileID}, matchAttempts={matchAttempts})", file.VideoID, autoMatchAttempts);
 
-      HttpResponseMessage response = await _httpClient.PostAsync($"File/{file.VideoFileID}/Rescan", null);
+      HttpResponseMessage response = await _httpClient.PostAsync($"File/{file.VideoID}/Rescan", null);
       _ = response.EnsureSuccessStatusCode();
     }
     catch (HttpRequestException ex)
     {
-      _logger.Warn($"Unable to scan file ('{file.Filename}')");
+      _logger.Warn($"Unable to scan file ('{file.FileName}')");
       _logger.Warn("Exception: ", ex);
     }
   }
@@ -117,7 +117,7 @@ public class ShokoHelper : IDisposable, IShokoHelper
   {
     try
     {
-      HttpResponseMessage response = await _httpClient.GetAsync($"Series/AniDB/{anime.AnimeID}/Series?includeDataFrom=AniDB");
+      HttpResponseMessage response = await _httpClient.GetAsync($"Series/AniDB/{anime.ID}/Series?includeDataFrom=AniDB");
       _ = response.EnsureSuccessStatusCode();
 
       using Stream responseStream = await response.Content.ReadAsStreamAsync();
@@ -128,7 +128,7 @@ public class ShokoHelper : IDisposable, IShokoHelper
     }
     catch (HttpRequestException ex)
     {
-      _logger.Warn(CultureInfo.InvariantCulture, "Poster could not be downloaded for series ID: {animeId}", anime.AnimeID);
+      _logger.Warn(CultureInfo.InvariantCulture, "Poster could not be downloaded for series ID: {animeId}", anime.ID);
       _logger.Debug("Exception: {ex}", ex);
       return null;
     }
