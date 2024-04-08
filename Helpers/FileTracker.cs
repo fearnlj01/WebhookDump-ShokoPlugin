@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Shoko.Plugin.Abstractions.DataModels;
 
 namespace Shoko.Plugin.WebhookDump.Apis;

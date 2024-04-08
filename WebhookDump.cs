@@ -102,6 +102,14 @@ public class WebhookDump : IPlugin
   private async void OnFileMatched(object sender, FileMatchedEventArgs fileMatchedEvent)
   {
     IVideoFile fileInfo = fileMatchedEvent.FileInfo;
+
+    if (fileMatchedEvent.AnimeInfo.Count == 0 || fileMatchedEvent.EpisodeInfo.Count == 0)
+    {
+      // we don't want the plugin to panic here... so we'll just ignore that this ever happened.
+      // This appears to happen for when a series is new to Shoko, the episode info is pulled after the XRefs are created and matched.
+      return;
+    }
+
     IAnime animeInfo = fileMatchedEvent.AnimeInfo[0];
     IEpisode episodeInfo = fileMatchedEvent.EpisodeInfo[0];
 
@@ -141,7 +149,8 @@ public class WebhookDump : IPlugin
       var ed2k = dumpEvent.ED2Ks[i];
       var fileId = dumpEvent.VideoIDs[i];
 
-      if (!_fileTracker.TryGetValue(fileId, out var file)) {
+      if (!_fileTracker.TryGetValue(fileId, out var file))
+      {
         continue;
       }
 
