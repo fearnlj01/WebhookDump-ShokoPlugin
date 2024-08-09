@@ -11,6 +11,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using NLog;
 using Shoko.Plugin.Abstractions.DataModels;
+using Shoko.Plugin.Abstractions.DataModels.Shoko;
 using Shoko.Plugin.WebhookDump.Models.AniDB;
 using Shoko.Plugin.WebhookDump.Models.Discord;
 using Shoko.Plugin.WebhookDump.Settings;
@@ -64,7 +65,7 @@ public class DiscordHelper : IDisposable, IDiscordHelper
     }
   }
 
-  public async Task PatchWebhook(IVideoFile file, IAnime anime, IEpisode episode, MemoryStream imageStream, string messageId)
+  public async Task PatchWebhook(IVideoFile file, IShokoSeries anime, IEpisode episode, MemoryStream imageStream, string messageId)
   {
     _logger.Info(CultureInfo.InvariantCulture, "Attempting to update Discord message (fileId={fileId}, messageId={messageId})", file.VideoID, messageId);
 
@@ -124,7 +125,7 @@ public class DiscordHelper : IDisposable, IDiscordHelper
     };
   }
 
-  private Webhook GetMatchedWebhook(IVideoFile file, IAnime anime, IEpisode episode)
+  private Webhook GetMatchedWebhook(IVideoFile file, IShokoSeries anime, IEpisode episode)
   {
     UriBuilder publicUrl = new(_settings.Shoko.PublicUrl)
     {
@@ -186,7 +187,7 @@ public class DiscordHelper : IDisposable, IDiscordHelper
     return output;
   }
 
-  private static List<WebhookField> GetMatchedFields(IAnime series, IEpisode episode)
+  private static List<WebhookField> GetMatchedFields(IShokoSeries series, IEpisode episode)
   {
     AnimeTitle episodeTitle = episode.Titles.FirstOrDefault(t => t.Language == TitleLanguage.English);
     string episodeNumber = episode.EpisodeNumber.ToString("00", CultureInfo.InvariantCulture);
@@ -211,7 +212,7 @@ public class DiscordHelper : IDisposable, IDiscordHelper
   {
     return new WebhookFooter()
     {
-      Text = $"File ID: {file.VideoID} | CRC: {file.VideoInfo.Hashes.CRC}{(file.FileName.Contains($"[{file.VideoInfo.Hashes.CRC}]") ? " | CRC in filename" : string.Empty)}"
+      Text = $"File ID: {file.VideoID} | CRC: {file.Video?.Hashes.CRC}{(file.FileName.Contains($"[{file.Video?.Hashes.CRC}]") ? " | CRC in filename" : string.Empty)}"
     };
   }
 
