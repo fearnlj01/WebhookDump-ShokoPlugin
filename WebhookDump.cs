@@ -1,12 +1,12 @@
 using System;
 using System.IO;
-using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using NLog;
 using Shoko.Plugin.Abstractions;
 using Shoko.Plugin.Abstractions.DataModels;
+using Shoko.Plugin.Abstractions.DataModels.Shoko;
 using Shoko.Plugin.WebhookDump.Apis;
 using Shoko.Plugin.WebhookDump.Models.AniDB;
 using Shoko.Plugin.WebhookDump.Settings;
@@ -68,7 +68,7 @@ public class WebhookDump : IPlugin
 
   private void OnFileNotMatched(object sender, FileNotMatchedEventArgs fileNotMatchedEvent)
   {
-    IVideoFile fileInfo = fileNotMatchedEvent.FileInfo;
+    IVideoFile fileInfo = fileNotMatchedEvent.File;
     int matchAttempts = fileNotMatchedEvent.AutoMatchAttempts;
 
     if (!IsProbablyAnime(fileInfo) || fileNotMatchedEvent.HasCrossReferences)
@@ -79,7 +79,7 @@ public class WebhookDump : IPlugin
     if (matchAttempts == 1)
     {
       _fileTracker.TryAddFile(fileInfo);
-      _ = Task.Run(() => _shokoHelper.DumpFile(fileInfo.VideoID)).ConfigureAwait(false); ;
+      _ = Task.Run(() => _shokoHelper.DumpFile(fileInfo.VideoID)).ConfigureAwait(false);
     }
 
     if (
@@ -99,19 +99,19 @@ public class WebhookDump : IPlugin
     }
   }
 
-  private async void OnFileMatched(object sender, FileMatchedEventArgs fileMatchedEvent)
+  private async void OnFileMatched(object sender, FileEventArgs fileMatchedEvent)
   {
-    IVideoFile fileInfo = fileMatchedEvent.FileInfo;
+    IVideoFile fileInfo = fileMatchedEvent.File;
 
-    if (fileMatchedEvent.AnimeInfo.Count == 0 || fileMatchedEvent.EpisodeInfo.Count == 0)
+    if (fileMatchedEvent.Series.Count == 0 || fileMatchedEvent.Episodes.Count == 0)
     {
       // we don't want the plugin to panic here... so we'll just ignore that this ever happened.
       // This appears to happen for when a series is new to Shoko, the episode info is pulled after the XRefs are created and matched.
       return;
     }
 
-    IAnime animeInfo = fileMatchedEvent.AnimeInfo[0];
-    IEpisode episodeInfo = fileMatchedEvent.EpisodeInfo[0];
+    IShokoSeries animeInfo = fileMatchedEvent.Series[0];
+    IShokoEpisode episodeInfo = fileMatchedEvent.Episodes[0];
 
     if (!_fileTracker.TryRemoveFile(fileInfo.VideoID))
     {

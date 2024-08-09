@@ -9,6 +9,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using NLog;
 using Shoko.Plugin.Abstractions.DataModels;
+using Shoko.Plugin.Abstractions.DataModels.Shoko;
 using Shoko.Plugin.WebhookDump.Models.AniDB;
 using Shoko.Plugin.WebhookDump.Settings;
 
@@ -113,7 +114,7 @@ public class ShokoHelper : IDisposable, IShokoHelper
     }
   }
 
-  public async Task<AniDBPoster> GetSeriesPoster(IAnime anime)
+  public async Task<AniDBPoster> GetSeriesPoster(IShokoSeries anime)
   {
     try
     {
