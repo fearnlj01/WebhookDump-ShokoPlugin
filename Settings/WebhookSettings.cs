@@ -14,6 +14,8 @@ public class WebhookSettings : IWebhookSettings
 
   public WebhookMessageSettings Unmatched { get; set; }
 
+  public WebhookRestrictionSettings Restrictions { get; set; }
+
   public WebhookSettings()
   {
     Enabled = false;
@@ -30,6 +32,12 @@ public class WebhookSettings : IWebhookSettings
     {
       EmbedColor = "#3B82F6",
       EmbedText = "The above file has been found by Shoko Server but could not be matched against AniDB. The file has now been dumped with AVDump, result as below.",
+    };
+
+    Restrictions = new WebhookRestrictionSettings()
+    {
+      ShowRestrictedTitles = false,
+      PostIfTopMatchRestricted = true,
     };
   }
 }

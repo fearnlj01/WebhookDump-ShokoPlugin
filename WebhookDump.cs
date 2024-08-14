@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
@@ -156,6 +157,19 @@ public class WebhookDump : IPlugin
       }
 
       AniDBSearchResult searchResult = await _shokoHelper.MatchTitle(file.FileName);
+
+      if (
+        !_settings.Webhook.Restrictions.PostIfTopMatchRestricted &&
+        searchResult.List.First().Restricted
+      ) {
+        return;
+      }
+
+      if (!_settings.Webhook.Restrictions.ShowRestrictedTitles) {
+        searchResult.List.RemoveAll(x => x.Restricted);
+      }
+
+      searchResult.List = searchResult.List.Take(3).ToList();
       string messageId = await _discordHelper.SendWebhook(file, ed2k, searchResult);
 
       _ = _messageTracker.TryAddMessage(file.VideoID, messageId);
