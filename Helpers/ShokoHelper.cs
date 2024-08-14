@@ -118,7 +118,7 @@ public class ShokoHelper : IDisposable, IShokoHelper
   {
     try
     {
-      HttpResponseMessage response = await _httpClient.GetAsync($"Series/AniDB/{anime.ID}/Series?includeDataFrom=AniDB");
+      HttpResponseMessage response = await _httpClient.GetAsync($"Series/AniDB/{anime.AnidbAnimeID}/Series?includeDataFrom=AniDB");
       _ = response.EnsureSuccessStatusCode();
 
       using Stream responseStream = await response.Content.ReadAsStreamAsync();
