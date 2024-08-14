@@ -64,10 +64,10 @@ public class SettingsProvider : ISettingsProvider
     catch (FileNotFoundException)
     {
       settings = new CustomSettings();
-      SaveSettings(settings);
     }
 
     ValidateSettings(settings);
+    SaveSettings(settings); // Saves too often... But makes future additions easier to edit
 
     return settings;
   }

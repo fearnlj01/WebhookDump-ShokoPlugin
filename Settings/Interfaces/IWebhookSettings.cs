@@ -8,4 +8,5 @@ public interface IWebhookSettings
   string AvatarUrl { get; set; }
   WebhookMessageSettings Matched { get; set; }
   WebhookMessageSettings Unmatched { get; set; }
+  WebhookRestrictionSettings Restrictions { get; set; }
 }

@@ -1,6 +1,6 @@
 # What is this?
 
-~~Badly made, hacked together and published to GitHub far too soon...~~  
+~~Badly made, hacked together and published to GitHub far too soon...~~
 Flawed, but at long last, hopefully highly functional :) just don't look at the commit history.
 
 ## Features
@@ -30,10 +30,10 @@ able to add files to AniDB as soon as possible.
 
 ### What do the webhooks look like?
 
-_File unmatched_  
+_File unmatched_
 ![Webhook Example Image - File Unmatched](https://i.imgur.com/sAMNiHK.png)
 
-_File matched_  
+_File matched_
 ![Webhook Example Image - File Matched](https://i.imgur.com/8okNUrL.png)
 
 # Installation instructions
@@ -116,6 +116,16 @@ The default settings file that will be created is as per the below (albeit witho
 
       // The colour for the updated embed (in hexadecimal format)
       "EmbedColor": "#3B82F6"
+    },
+
+    // Applies some extra optional processing conditions preventing any 🙈 moments
+    "Restrictions": {
+      // If set to true, the titles will be returned as is from AniDB
+      // If false, it will remove any titles classified as "Restricted"
+      "ShowRestrictedTitles": false,
+
+      // If set to false, if the 'top' matching title is restricted, it will not try send a webhook notification
+      "PostIfTopMatchRestricted": true
     }
   }
 }
@@ -123,10 +133,10 @@ The default settings file that will be created is as per the below (albeit witho
 
 ## Getting the API key
 
-There are three methods you can employ to get an API Key. 
+There are three methods you can employ to get an API Key.
 
 ### 1. Web UI (Recommended)
-Log into the Web UI and navigate to Settings. Here, you should see a menu option called "API Keys" which will 
+Log into the Web UI and navigate to Settings. Here, you should see a menu option called "API Keys" which will
 allow you to create a new one for the plugin. Input a name, click "Generate," and copy the provided key.
 
 ### 2. Swagger
