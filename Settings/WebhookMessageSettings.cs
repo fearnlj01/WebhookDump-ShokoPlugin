@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Shoko.Plugin.WebhookDump.Settings;
 
-public class WebhookMessageSettings : IWebhookMessageSettings
+public class WebhookMessageSettings
 {
   [DefaultValue(null)]
   public string MessageText { get; set; }
