@@ -1,191 +1,134 @@
 # What is this?
+Flawed, but functional :)
 
-~~Badly made, hacked together and published to GitHub far too soon...~~
-Flawed, but at long last, hopefully highly functional :) just don't look at the commit history.
-
+If you use discord and want to be *automatically* notified when Shoko is not able to recognise any media it's found so
+you can get it added to AniDB, this could be the plugin for you.
+___________
 ## Features
+This [Shoko](https://shokoanime.com/) plugin offers a few different features, some required, some optional. This plugin
+was built for my own benefit, so forgive me if some things don't make sense.
 
-This [Shoko](https://shokoanime.com/) plugin offers a few different features, primarily targeted at users who want to be
-able to add files to AniDB as soon as possible.
-
+### Required
 - Automatic AVDumping of unmatched files (first time unmatched only)
-- Sending webhooks to discord when the file is not matched
-  - When unmatched,
-    - The dumped ED2K is provided, ready to be added to AniDB
-    - The three most likely AniDB series for the file (based on filename) have links provided for the "Add Release" page.
-    - The title URL for the embed will take you to the `Unrecognised files` utility in Shoko's beta Web UI.
-  - When later matched (overwriting the original message),
-    - Series poster attached as a thumbnail to the embed
-    - Link to the Anime on AniDB
-    - Link to the Episode on AniDB
-- Optionally, automatic re-scanning. There are two ways of doing this.
-  - Queued on future unmatched events
-    - For each time a file has attempted to be matched, the wait till the next attempt will increase by five minutes.
-    - By default, rescans will be queued five times. (5 minutes after dumping, then 10, 15, 20 & 25 minutes after the
-      last rescan)
-  - Watched webhook messages
-    - For messages that the plugin is tracking (any sent by the plugin since the server was launched each session), they
-      will be checked every fifteen minutes. If a message has any reactions when polled, it will queue a rescan for the
-      relevant file.
 
-### What do the webhooks look like?
+### Optional
+##### Webhooks
+If enabled and provided with a valid webhook URL, when a file cannot be matched by Shoko it will send an embed message to discord.
 
-_File unmatched_
-![Webhook Example Image - File Unmatched](https://i.imgur.com/sAMNiHK.png)
+When a file cannot be automatically matched:
+- Provides a link to the `Unrecognised files` utility in the Shoko Web UI.
+- Provides the result of the AVDump in a copy/paste friendly format.
+- Provides links directly to the `Add Release` page for the top three most likely anime matching the file.
+  - If **the most directly matching title** is R18, you can optionally prevent the message from being sent.
+  - If **any of the top 10** most likely series are R18, you can optionally prevent these individual titles from being linked.
+  - If a series is deemed by Shoko as being currently airing... It will get bumped to be the first title shown.
+- In the footer of the embed, includes:
+  - The Shoko ID for the file
+  - The computed CRC for the file.
+  - If the CRC is not found in the original title of the file... A notification as such will also be shown.
+- If the CRC is not found in the original title, the embed colour will also change (not currently configurable).
 
-_File matched_
-![Webhook Example Image - File Matched](https://i.imgur.com/8okNUrL.png)
+After a file (previously unmatched) is matched, the previous message will be edited to have:
+- A copy of the series poster as a thumbnail
+- A link to the series on AniDB
+- A link to the episode on AniDB
+- A relative timestamp, letting you know in a human-readable format when the file was recognised by Shoko
+
+##### Automatic match attempts
+If enabled, each file that's been handled by this plugin can automatically try get Shoko to match the file again. This
+can be done in a combination of two ways:
+- Scheduled
+  - Whenever Shoko tries to match a file being managed by the plugin, a future match attempt will be scheduled.
+  - For each attempt, it will wait `i * 5` minutes before the next attempt is scheduled.
+  - Unless changed, the plugin will only attempt this for up to five match attempts.
+- Watching for reactions to the webhook message
+  - For any webhook sent since Shoko was last restarted, it will check the message state every 15 minutes.
+  - If the message has any reactions when checked, it will queue a rescan for the file.
+  - This will continue until there is no reactions, or the file is matched - be warned that this may result in Shoko getting a (temporary) AniDB ban.
+___
+## What do the messages look like?
+
+File unmatched
+
+![Webhook Example Image - File Unmatched](https://i.imgur.com/DQRmnoL.png)
+
+File unmatched (Matching CRC not found)
+
+![Webhook Example Image - File Unmatched - No matching CRC](https://i.imgur.com/TNH0kQB.png)
+
+File matched
+
+![Webhook Example Image - File Matched](https://i.imgur.com/6eUehg6.png)
 
 # Installation instructions
 
 1. Download `WebhookDump.dll` from the latest release (or follow the build instructions to create this)
-2. Find the install directory for [Shoko Server](https://github.com/ShokoAnime/ShokoServer/). (On windows this is likely
-   `C:\Program Files (x86)\Shoko\Shoko Server\`)
-3. Copy the aforementioned dll into the `plugins` directory found in the Shoko Server install directory
+2. Find the config directory for [Shoko Server](https://github.com/ShokoAnime/ShokoServer/).
+   - Windows: `C:\ProgramData\ShokoServer\`
+   - Docker Compose ([recommended on linux](https://docs.shokoanime.com/getting-started/installing-shoko-server)): `./shoko-config/Shoko.CLI/`
+   - Linux: `$HOME/.shoko/Shoko.CLI/`
+3. Copy `WebhookDump.dll` into the `plugins` directory. You may need to create the directory yourself.
 4. Relaunch Shoko Server (this creates the settings file mentioned below).
-5. Proceed to configure the plugin as below
-6. Once configured, relaunch Shoko Server once again
+5. Edit (and save) the configuration file found in the config directory, `WebhookDump.json`.
+6. Relaunch Shoko Server and enjoy!
 
 ## Plugin setup
 
-Everything in the plugin is configured using a JSON file, `WebhookDump.json`, which is created in the same directory as
-`server-settings.json` - By default on Windows, `C:\ProgramData\ShokoServer\`. Unfortunately there's not currently no
-easier way of changing the settings, but who knows what the future holds?
+Everything in the plugin is configured using a JSON file, `WebhookDump.json`, created in the Shoko Server config
+directory. Unfortunately there's not currently a way of changing the settings in a UI, but who knows what PR's people
+may submit?
 
-The default settings file that will be created is as per the below (albeit without the comments or extra spaces)
-
+An example fully configured settings file is shown below
 ```json
 {
   "Shoko": {
-    // The Shoko API key, obtained as per the below instructions. Make sure the value is surrounded by quotation marks!
-    "ApiKey": null,
-
-    // The server port that Shoko runs on... You'll know if this needs changing.
+    "ApiKey": "f6207f72-7323-48fd-bbe7-b246a299131e",
     "ServerPort": 8111,
-
-    // This is used as the base of the public address for Shoko provided to webhooks
-    "PublicUrl": "http://localhost",
-
-    // If set, this will be the port used for the public address provided to webhooks.
-    // If not running behind a reverse proxy, this should probably be set to 8111, like the ServerPort.
+    "PublicUrl": "https://shoko.mywebsite.com",
     "PublicPort": null,
-
     "AutomaticMatch": {
-      // This enables the 'Queued on future unmatched events' automatic rescan feature.
       "Enabled": true,
-
-      // This controls the maximum number of times the 'Queued on future unmatched events' rescan feature will be attempted.
       "MaxAttempts": 5,
-
-      // If set to true, the 'Watched webhook messages' feature will be enabled
       "WatchReactions": false
     }
   },
   "Webhook": {
-    // When true, the webhook feature is enabled.
     "Enabled": false,
-
-    // This is the URL for the webhook - as per https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks
-    "Url": null,
-
-    // Customisable username for the webhook
+    "Url": "https://discord.com/api/webhooks/1304522890594488445/XTgEytkQGhHE1w6ANTDavyuJ01ol_2DCt8HAVq0Z6t1wcKscs4rjeJN5qS2kqNf6LSK9",
     "Username": "Shoko",
-
-    // Customisable avatar for the webhook
-    "AvatarUrl": "https://shokoanime.com/icon.png",
-
-    // Controls how the message sent for the unmatched event is updated after being matched.
+    "AvatarUrl": "https://raw.githubusercontent.com/ShokoAnime/ShokoServer/e88bb42b544809334daaf9053ae9582601d90915/.github/images/Shoko.png",
     "Matched": {
-      // The discord message text (appears before the embed)
       "MessageText": null,
-
-      // The text contents of the updated embed.
       "EmbedText": "An unmatched file automatically dumped by this plugin has now been matched.",
-
-      // The colour for the updated embed (in hexadecimal format)
       "EmbedColor": "#57F287"
     },
-
-    // Controls the message sent after an unmatched event.
     "Unmatched": {
-      // The discord message text (appears before the embed)
       "MessageText": null,
-
-      // The text contents of the updated embed.
       "EmbedText": "The above file has been found by Shoko Server but could not be matched against AniDB. The file has now been dumped with AVDump, result as below.",
-
-      // The colour for the updated embed (in hexadecimal format)
       "EmbedColor": "#3B82F6"
     },
-
-    // Applies some extra optional processing conditions preventing any 🙈 moments
     "Restrictions": {
-      // If set to true, the titles will be returned as is from AniDB
-      // If false, it will remove any titles classified as "Restricted"
       "ShowRestrictedTitles": false,
-
-      // If set to false, if the 'top' matching title is restricted, it will not try send a webhook notification
       "PostIfTopMatchRestricted": true
     }
   }
 }
 ```
 
-## Getting the API key
+## Getting the (Shoko) API key
 
-There are three methods you can employ to get an API Key.
+There used to be more documented ways in the past here,
+but you know what you're doing if you don't want to use this option.
 
-### 1. Web UI (Recommended)
-Log into the Web UI and navigate to Settings. Here, you should see a menu option called "API Keys" which will
-allow you to create a new one for the plugin. Input a name, click "Generate," and copy the provided key.
-
-### 2. Swagger
-Navigate to the following address in your webrowser,
-`http://{your-shoko-ip-here}:8111/swagger/index.html`. From here you can select the first option, `/api/auth`, and
-choose to `Try it out`. No awards are provided for submitting this correctly, but you do get the required API key to
-move forwards.
-
-### 3. CLI
-For those that don't like taking the easy road in life, the command line instructions on how to get an API key are as
-below.
-
-### Windows (Powershell)
-
-```ps
-$body = @{
-  "user" = "shoko_username"
-  "pass" = $(Read-Host -Prompt "Shoko password:... ")
-  "device" = "webhook"
-} | ConvertTo-Json
-
-$headers = @{
-  "accept" = "*/*"
-  "Content-Type" = "application/json-patch+json"
-}
-
-((Invoke-WebRequest -Uri 'http://localhost:8111/api/auth' -Method 'POST' -Headers $headers -Body $body).Content | ConvertFrom-Json).apikey
-```
-
-### The not Windows ones
-
-You guys have it easier here...
-
-```bash
-read -s -p "Shoko password: " password
-curl -X 'POST' \
-  'http://localhost:8111/api/auth' \
-  -H 'accept: */*' \
-  -H 'Content-Type: application/json-patch+json' \
-  -d '{
-  "user": "shoko_username",
-  "pass": "'"$password"'",
-  "device": "webhook"
-}'
-```
+### From the Web UI
+1. Log into the Web UI
+2. Open the Settings.
+3. Choose the menu option called "API Keys".
+4. Input a name, click "Generate," and copy the provided key.
 
 # Build instructions
 
-1. Clone this repository & ensure that at least v6.0 of the .NET Core SDK is installed
+1. Clone this repository & ensure that at least v8.0 of the .NET Core SDK is installed
 2. Leave a like, subscribe and smash that bell button
 3. Run the below commands
 
@@ -194,9 +137,4 @@ dotnet restore
 dotnet build -c Release
 ```
 
-4. Nice and easy, you can find `WebhookDump.dll` in the `bin/Release/net6.0/` folder.
-
-## A final note
-
-Don't trust the `.vscode` directory. It's a scary folder that's proof of my lazyness. Can be adapted however for your
-own use case if you fancy making this plugin ~~less crap~~ more refined.
+4. `WebhookDump.dll` should've been built and be ready to copy from the `bin/Release/net8.0/` folder.
