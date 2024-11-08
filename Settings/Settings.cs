@@ -1,14 +1,20 @@
+using System.Text.Json;
+
 namespace Shoko.Plugin.WebhookDump.Settings;
 
-public class CustomSettings : ISettings
+public class CustomSettings
 {
-  public ShokoSettings Shoko { get; set; }
+  public ShokoSettings Shoko { get; init; } = new();
 
-  public WebhookSettings Webhook { get; set; }
+  public WebhookSettings Webhook { get; init; } = new();
 
-  public CustomSettings()
+  public override string ToString()
   {
-    Shoko = new ShokoSettings();
-    Webhook = new WebhookSettings();
+    var options = new JsonSerializerOptions
+    {
+      Converters = { new SkipPrivateAttributesConverter<CustomSettings>() },
+      WriteIndented = true
+    };
+    return JsonSerializer.Serialize(this, options);
   }
 }

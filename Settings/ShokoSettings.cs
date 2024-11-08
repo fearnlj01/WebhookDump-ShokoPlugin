@@ -2,30 +2,23 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Shoko.Plugin.WebhookDump.Settings;
 
-public class ShokoSettings : IShokoSettings
+public class ShokoSettings
 {
+  [JsonPrivate]
   public string ApiKey { get; set; }
 
   [Required]
   [Range(1, 65536, ErrorMessage = "A server port of no more than 65536 may be set.")]
-  public int ServerPort { get; set; }
+  public int ServerPort { get; set; } = 8111;
 
-  public string PublicUrl { get; set; }
+  [JsonPrivate]
+  public string PublicUrl { get; set; } = "http://localhost";
 
   public int? PublicPort { get; set; }
-  public AutomaticMatchSettings AutomaticMatch { get; set; }
-
-  public ShokoSettings()
+  public AutomaticMatchSettings AutomaticMatch { get; set; } = new()
   {
-    ApiKey = null;
-    ServerPort = 8111;
-    PublicUrl = "http://localhost";
-    PublicPort = null;
-    AutomaticMatch = new()
-    {
-      Enabled = true,
-      MaxAttempts = 5,
-      WatchReactions = false
-    };
-  }
+    Enabled = true,
+    MaxAttempts = 5,
+    WatchReactions = false
+  };
 }

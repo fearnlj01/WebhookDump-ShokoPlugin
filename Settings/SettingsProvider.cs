@@ -1,15 +1,12 @@
-using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.IO;
 using System.Reflection;
 using System.Text.Json;
 using NLog;
 
 namespace Shoko.Plugin.WebhookDump.Settings;
-public class SettingsProvider : ISettingsProvider
+public class SettingsProvider
 {
-  private static readonly Logger _logger = LogManager.GetCurrentClassLogger();
+  private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
   private readonly string _filePath = Path.Combine(ApplicationPath, "WebhookDump.json");
   private readonly object _settingsLock = new();
   private CustomSettings _settings;
@@ -17,7 +14,7 @@ public class SettingsProvider : ISettingsProvider
   #region `ShokoServer/Shoko.Server/Utilities/Utils.cs`
   private static bool IsLinux => Environment.OSVersion.Platform is PlatformID.Unix;
 
-  private static string DefaultInstance => Assembly.GetEntryAssembly().GetName().Name;
+  private static string DefaultInstance => Assembly.GetEntryAssembly()?.GetName().Name;
 
   private static string ApplicationPath => IsLinux
           ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".shoko",
@@ -26,24 +23,24 @@ public class SettingsProvider : ISettingsProvider
           DefaultInstance);
   #endregion
 
-  private static readonly JsonSerializerOptions _options = new()
+  private static readonly JsonSerializerOptions Options = new()
   {
     AllowTrailingCommas = true,
     WriteIndented = true
   };
 
-  public ISettings GetSettings()
+  public CustomSettings GetSettings()
   {
     _settings ??= GetSettingsFromFile();
 
     return _settings;
   }
 
-  public void SaveSettings(ISettings settings)
+  public void SaveSettings(CustomSettings settings)
   {
     ValidateSettings(settings);
 
-    string json = JsonSerializer.Serialize(settings, _options);
+    var json = JsonSerializer.Serialize(settings, Options);
 
     lock (_settingsLock)
     {
@@ -58,8 +55,8 @@ public class SettingsProvider : ISettingsProvider
     CustomSettings settings;
     try
     {
-      string contents = File.ReadAllText(_filePath);
-      settings = JsonSerializer.Deserialize<CustomSettings>(contents, _options);
+      var contents = File.ReadAllText(_filePath);
+      settings = JsonSerializer.Deserialize<CustomSettings>(contents, Options);
     }
     catch (FileNotFoundException)
     {
@@ -72,22 +69,22 @@ public class SettingsProvider : ISettingsProvider
     return settings;
   }
 
-  private static void ValidateSettings(ISettings settings)
+  private static void ValidateSettings(CustomSettings settings)
   {
-    List<ValidationResult> validationResults = new();
+    List<ValidationResult> validationResults = [];
     ValidationContext validationContext = new(settings);
 
-    bool isValid = Validator.TryValidateObject(
+    var isValid = Validator.TryValidateObject(
       settings, validationContext, validationResults, true
     );
 
     if (!isValid)
     {
-      foreach (ValidationResult validationResult in validationResults)
+      foreach (var validationResult in validationResults)
       {
-        foreach (string memberName in validationResult.MemberNames)
+        foreach (var memberName in validationResult.MemberNames)
         {
-          _logger.Error($"Error validating settings for property {memberName} : {validationResult.ErrorMessage}");
+          Logger.Error($"Error validating settings for property {memberName} : {validationResult.ErrorMessage}");
         }
       }
       throw new ArgumentException("Error in settings validation");
