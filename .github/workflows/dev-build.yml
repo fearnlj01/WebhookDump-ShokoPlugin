@@ -1,0 +1,22 @@
+﻿name: Build (Dev)
+on:
+  push:
+    tags:
+    - v*
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.x'
+      - name: Build plugin
+        run: dotnet publish -c Release -f net8.0 WebhookDump.csproj
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: WebhookDump
+          path: bin/Release/net8.0/publish
