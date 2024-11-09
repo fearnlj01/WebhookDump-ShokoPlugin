@@ -81,9 +81,10 @@ public class WebhookDump : IPlugin
     if (matchAttempts > _settings.Shoko.AutomaticMatch.MaxAttempts
         || !_settings.Shoko.AutomaticMatch.Enabled
         || !_fileTracker.Contains(video.ID)) return;
+
     try
     {
-      _ = Task.Run(() => _shokoHelper.ScanFile(video, matchAttempts)).ConfigureAwait(false);
+      _ = WaitForRescan(video, matchAttempts);
     }
     catch (Exception ex)
     {
@@ -194,5 +195,14 @@ public class WebhookDump : IPlugin
 
     AttemptMatchedUpdate(seriesInfo, episodeInfo, episodeInfo.VideoList[0]);
     _episodesMissingReferences.Remove(episodeInfo.ID);
+  }
+
+  private async Task WaitForRescan(IVideo video, int matchAttempts = 1)
+  {
+    var waitPeriod = TimeSpan.FromMinutes(matchAttempts * 5);
+    await Task.Delay(waitPeriod);
+
+    if (!_fileTracker.Contains(video.ID)) return;
+    _ = _shokoHelper.ScanFile(video, matchAttempts);
   }
 }

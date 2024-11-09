@@ -72,14 +72,11 @@ public sealed class ShokoHelper : IDisposable
     }
   }
 
-  public async Task ScanFile(IVideo video, int autoMatchAttempts = 1)
+  public async Task ScanFile(IVideo video, int matchAttempts)
   {
+    Logger.Info(CultureInfo.InvariantCulture, "Requesting file rescan (fileId={fileID}, matchAttempts={matchAttempts})", video.ID, matchAttempts);
     try
     {
-      await Task.Delay(TimeSpan.FromMinutes(autoMatchAttempts * 5));
-
-      Logger.Info(CultureInfo.InvariantCulture, "Requesting file rescan (fileId={fileID}, matchAttempts={matchAttempts})", video.ID, autoMatchAttempts);
-
       var response = await _httpClient.PostAsync($"File/{video.ID}/Rescan", null);
       _ = response.EnsureSuccessStatusCode();
     }
