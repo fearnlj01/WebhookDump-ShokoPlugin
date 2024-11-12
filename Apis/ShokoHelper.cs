@@ -67,9 +67,23 @@ public sealed class ShokoHelper : IDisposable
       ex is HttpRequestException or JsonException or ArgumentNullException or InvalidOperationException
     )
     {
-      Logger.Warn(CultureInfo.InvariantCulture, "Unable to retrieve title information for a file (fileName='{filename}') from AniDB", filename);
+      Logger.Warn(CultureInfo.InvariantCulture,
+        "Unable to retrieve title information for a file (fileName='{filename}') from AniDB", filename);
       Logger.Debug("Exception: {ex}", ex);
-      return null;
+      return new AniDBSearchResult()
+      {
+        Total = 0,
+        List = []
+      };
+    }
+    catch (Exception)
+    {
+      // I don't want to be the cause for more NREs... I'm playing it safe this time round.
+      return new AniDBSearchResult()
+      {
+        Total = 0,
+        List = []
+      };
     }
   }
 
