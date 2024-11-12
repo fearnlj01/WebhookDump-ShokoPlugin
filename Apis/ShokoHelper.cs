@@ -56,6 +56,7 @@ public sealed class ShokoHelper : IDisposable
     try
     {
       var title = GetSafeTitleFromFile(filename);
+      if (string.IsNullOrEmpty(title)) title = filename;
 
       var response = await _httpClient.GetAsync($"Series/AniDB/Search?query={title}&pageSize=10&page=1");
       _ = response.EnsureSuccessStatusCode();
