@@ -199,7 +199,8 @@ public class WebhookDump : IPlugin
 
   private async Task WaitForRescan(IVideo video, int matchAttempts = 1)
   {
-    var waitPeriod = TimeSpan.FromMinutes(matchAttempts * 5);
+    // The subtracted seconds are to avoid the logout timer firing in ShokoServer @ the five-minute interval
+    var waitPeriod = TimeSpan.FromMinutes(matchAttempts * 5) - TimeSpan.FromSeconds(15);
     await Task.Delay(waitPeriod);
 
     if (!_fileTracker.Contains(video.ID)) return;
