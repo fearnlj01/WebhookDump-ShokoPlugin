@@ -99,7 +99,8 @@ public sealed class DiscordHelper : IDisposable
     };
 
     var crc = video.Hashes.CRC ?? string.Empty;
-    var matchedCrc = video.EarliestKnownName?.Contains($"[{crc}]") ?? false;
+    var matchedCrc = video.EarliestKnownName?.Contains(crc) ?? false;
+    // Surely the chance that the CRC is found in the title as part as normal text and not the CRC has to be pretty slim...
 
     var colour = !matchedCrc ? "D85311" : _settings.Webhook.Unmatched.EmbedColor.TrimStart('#');
 
