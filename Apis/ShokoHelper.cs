@@ -119,7 +119,8 @@ public sealed class ShokoHelper : IDisposable
     }
   }
 
-  public async Task<Image> GetSeriesPoster(ISeries anime)
+  #nullable enable
+  public async Task<Image?> GetSeriesPoster(ISeries anime)
   {
     try
     {
@@ -132,9 +133,10 @@ public sealed class ShokoHelper : IDisposable
     {
       Logger.Warn(CultureInfo.InvariantCulture, "Poster could not be downloaded for series ID: {animeId}", anime.ID);
       Logger.Debug("Exception: {ex}", ex);
-      return null;
     }
+    return null;
   }
+  #nullable disable
 
   public async Task<MemoryStream> GetImageStream(Image shokoImage)
   {

@@ -26,7 +26,7 @@ public class WebhookDump : IPlugin
 
   private readonly FileTracker _fileTracker;
 
-  private readonly HashSet<int> _episodesMissingReferences = [];
+  private readonly HashSet<int> _anidbTrackedEpisodeIds = [];
 
   public static void ConfigureServices(IServiceCollection services)
   {
@@ -95,23 +95,27 @@ public class WebhookDump : IPlugin
   private void OnFileMatched(object sender, FileEventArgs fileMatchedEvent)
   {
     var video = fileMatchedEvent.Video;
+    var series = fileMatchedEvent.Series;
     var episodes = fileMatchedEvent.Episodes;
 
-    if (video.CrossReferences.Count == 0 && episodes.Count > 0)
+    if (episodes.Count == 0 && series.Count == 0)
     {
-      _episodesMissingReferences.Add(episodes[0].ID);
+      foreach (var crossReference in video.CrossReferences)
+        _anidbTrackedEpisodeIds.Add(crossReference.AnidbEpisodeID);
       return;
     }
 
-    if (fileMatchedEvent.Series.Count == 0 || fileMatchedEvent.Episodes.Count == 0)
+    if (episodes.Count == 0 || series.Count == 0) // This is just a safeguard...
     {
-      Logger.Debug($"I don't think this should ever be seen, but if it is... Let @fearnlj01 know it can happen (please).");
+      // I don't know in what circumstance this code will execute...
+      Logger.Error("I don't think this should ever be seen, but if it is... Let @fearnlj01 know it can happen (please).");
       return;
     }
 
-    AttemptMatchedUpdate(fileMatchedEvent.Series[0], fileMatchedEvent.Episodes[0], video);
+    AttemptMatchedUpdate(series[0], episodes[0], video);
   }
 
+  #nullable enable
   private async void AttemptMatchedUpdate(ISeries series, IEpisode episode, IVideo video)
   {
     if (
@@ -126,7 +130,7 @@ public class WebhookDump : IPlugin
     try
     {
       var poster = await _shokoHelper.GetSeriesPoster(series);
-      var imageStream = await _shokoHelper.GetImageStream(poster);
+      var imageStream = poster != null ? await _shokoHelper.GetImageStream(poster) : null;
 
       await _discordHelper.PatchWebhook(video, series, episode, imageStream, messageId);
       _messageTracker.TryRemoveMessage(video.ID);
@@ -136,19 +140,16 @@ public class WebhookDump : IPlugin
       Logger.Debug("Exception: {ex}", ex);
     }
   }
+  #nullable disable
 
   private async void OnAVDumpEvent(object sender, AVDumpEventArgs dumpEvent)
   {
     if (dumpEvent.Type != AVDumpEventType.Success || !_settings.Webhook.Enabled)
       return;
 
-    for (var i = 0; i < dumpEvent.VideoIDs?.Count && i < dumpEvent.ED2Ks?.Count; i++)
+    foreach (var videoId in dumpEvent.VideoIDs ?? Array.Empty<int>())
     {
-      var ed2K = dumpEvent.ED2Ks[i];
-      var fileId = dumpEvent.VideoIDs[i];
-
-      if (!_fileTracker.TryGetValue(fileId, out var video))
-        continue;
+      if (!_fileTracker.TryGetValue(videoId, out var video)) continue;
 
       var searchResult = await _shokoHelper.MatchTitle(video.EarliestKnownName);
 
@@ -174,7 +175,7 @@ public class WebhookDump : IPlugin
       });
 
       searchResult.List = searchResult.List.Take(3).ToList();
-      var messageId = await _discordHelper.SendWebhook(video, ed2K, searchResult);
+      var messageId = await _discordHelper.SendWebhook(video, searchResult);
 
       _ = _messageTracker.TryAddMessage(video.ID, messageId);
     }
@@ -182,19 +183,20 @@ public class WebhookDump : IPlugin
 
   private void OnEpisodeUpdatedEvent(object sender, EpisodeInfoUpdatedEventArgs episodeInfoUpdatedEvent)
   {
-    var episodeInfo = episodeInfoUpdatedEvent.EpisodeInfo;
-    var updateReason = episodeInfoUpdatedEvent.Reason;
-    var seriesInfo = episodeInfoUpdatedEvent.SeriesInfo;
+    if (episodeInfoUpdatedEvent.Reason is not (UpdateReason.Added or UpdateReason.Updated)) return;
 
-    if (!_episodesMissingReferences.Contains(episodeInfo.ID) || episodeInfo.VideoList.Count == 0 ||
-        (updateReason != UpdateReason.Added && updateReason != UpdateReason.Updated)
-       )
-    {
-      return;
-    }
+    var episode = episodeInfoUpdatedEvent.EpisodeInfo;
+    var series = episodeInfoUpdatedEvent.SeriesInfo;
 
-    AttemptMatchedUpdate(seriesInfo, episodeInfo, episodeInfo.VideoList[0]);
-    _episodesMissingReferences.Remove(episodeInfo.ID);
+    var anidbEpisodeIds = episode.CrossReferences.Select(reference => reference.AnidbEpisodeID).ToHashSet();
+
+    if (episode.VideoList.Count == 0) return;
+
+    var removedLog = anidbEpisodeIds.Select(eid => _anidbTrackedEpisodeIds.Remove(eid)).ToList();
+    if (!removedLog.Any(removedBool => removedBool)) return;
+
+    Logger.Debug("Attempting to update webhook by episode added/updated.");
+    AttemptMatchedUpdate(series, episode, episode.VideoList[0]);
   }
 
   private async Task WaitForRescan(IVideo video, int matchAttempts = 1)
