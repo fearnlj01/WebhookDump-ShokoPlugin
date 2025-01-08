@@ -57,12 +57,19 @@ public sealed class DiscordHelper : IDisposable
     }
   }
 
-  public async Task PatchWebhook(IVideo video, ISeries anime, IEpisode episode, MemoryStream imageStream, string messageId)
+  #nullable enable
+  public async Task PatchWebhook(IVideo video, ISeries anime, IEpisode episode, MemoryStream? imageStream, string messageId)
   {
     Logger.Info(CultureInfo.InvariantCulture, "Attempting to update Discord message (fileId={fileId}, messageId={messageId})", video.ID, messageId);
 
     try
     {
+      if (imageStream == null)
+      {
+        await PatchWebhook(video, anime, episode, messageId);
+        return;
+      }
+
       MultipartFormDataContent form = new();
 
       var webhook = GetMatchedWebhook(video, anime, episode);
@@ -89,6 +96,22 @@ public sealed class DiscordHelper : IDisposable
       Logger.Debug("Exception: {ex}", ex);
     }
   }
+
+  public async Task PatchWebhook(IVideo video, ISeries anime, IEpisode episode, string messageId)
+  {
+    try {
+      var webhook = GetMatchedWebhook(video, anime, episode, false);
+
+      var response = await _httpClient.PatchAsJsonAsync($"{_baseUrl}/messages/{messageId}", webhook, _options);
+      _ = response.EnsureSuccessStatusCode();
+    }
+    catch (Exception ex)
+    {
+      // TODO: More logging
+      Logger.Debug("Exception: {ex}", ex);
+    }
+  }
+#nullable disable
 
   private Webhook GetUnmatchedWebhook(IVideo video, AniDBSearchResult searchResult)
   {
@@ -124,12 +147,21 @@ public sealed class DiscordHelper : IDisposable
     };
   }
 
-  private Webhook GetMatchedWebhook(IVideo video, ISeries anime, IEpisode episode)
+  private Webhook GetMatchedWebhook(IVideo video, ISeries anime, IEpisode episode, bool includePoster = true)
   {
     UriBuilder publicUrl = new(_settings.Shoko.PublicUrl)
     {
       Port = _settings.Shoko.PublicPort ?? -1
     };
+
+    var webhookAttachments = includePoster ? (WebhookAttachment[])[
+      new WebhookAttachment
+      {
+        Id = 0,
+        Description = "Anime Poster",
+        Filename = "unknown.jpg"
+      }
+    ] : [];
 
     return new Webhook()
     {
@@ -152,15 +184,7 @@ public sealed class DiscordHelper : IDisposable
           Footer = GetFooter(video)
         }
       ],
-      Attachments =
-      [
-        new WebhookAttachment
-        {
-          Id = 0,
-          Description = "Anime Poster",
-          Filename = "unknown.jpg"
-        }
-      ]
+      Attachments = webhookAttachments
     };
   }
 
