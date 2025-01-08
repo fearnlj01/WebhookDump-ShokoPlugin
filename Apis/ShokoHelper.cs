@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using NLog;
 using Shoko.Plugin.Abstractions.DataModels;
+using Shoko.Plugin.WebhookDump.Misc;
 using Shoko.Plugin.WebhookDump.Models.Shoko;
 using Shoko.Plugin.WebhookDump.Models.Shoko.AniDB;
 using Shoko.Plugin.WebhookDump.Settings;
@@ -156,6 +157,17 @@ public sealed class ShokoHelper : IDisposable
       Logger.Debug("Exception: {ex}", ex);
       return null;
     }
+  }
+
+  public static string GetEd2KString(IVideo video, bool sanitized = false)
+  {
+    var hash = video.Hashes.ED2K;
+    var fileSize = video.Size;
+    var fileName = video.EarliestKnownName;
+    if (sanitized)
+      fileName = MarkdownEscaper.EscapeMarkdownPairs(fileName);
+
+    return $@"ed2k://|file|{fileName}|{fileSize}|{hash}|/";
   }
 
   private static string GetSafeTitleFromFile(string file)

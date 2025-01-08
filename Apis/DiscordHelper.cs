@@ -33,11 +33,11 @@ public sealed class DiscordHelper : IDisposable
     _baseUrl = _settings.Webhook.Url;
   }
 
-  public async Task<string> SendWebhook(IVideo video, string dumpResult, AniDBSearchResult searchResult)
+  public async Task<string> SendWebhook(IVideo video, AniDBSearchResult searchResult)
   {
     try
     {
-      var webhook = GetUnmatchedWebhook(video, dumpResult, searchResult);
+      var webhook = GetUnmatchedWebhook(video, searchResult);
 
       Logger.Info(CultureInfo.InvariantCulture, "Sending Discord webhook (fileId={fileId})", video.ID);
 
@@ -90,7 +90,7 @@ public sealed class DiscordHelper : IDisposable
     }
   }
 
-  private Webhook GetUnmatchedWebhook(IVideo video, string dumpResult, AniDBSearchResult searchResult)
+  private Webhook GetUnmatchedWebhook(IVideo video, AniDBSearchResult searchResult)
   {
     UriBuilder publicUrl = new(_settings.Shoko.PublicUrl)
     {
@@ -113,11 +113,11 @@ public sealed class DiscordHelper : IDisposable
       [
         new WebhookEmbed
         {
-          Title = video.EarliestKnownName,
+          Title = MarkdownEscaper.EscapeMarkdownPairs(video.EarliestKnownName),
           Url = publicUrl.Uri.ToString(),
           Description = _settings.Webhook.Unmatched.EmbedText,
           Color = Convert.ToInt32(colour, 16),
-          Fields = GetUnmatchedFields(dumpResult, searchResult),
+          Fields = GetUnmatchedFields(video, searchResult),
           Footer = GetFooter(video)
         }
       ]
@@ -164,14 +164,15 @@ public sealed class DiscordHelper : IDisposable
     };
   }
 
-  private static List<WebhookField> GetUnmatchedFields(string dumpResult, AniDBSearchResult searchResult)
+  private static List<WebhookField> GetUnmatchedFields(IVideo video, AniDBSearchResult searchResult)
   {
+    var ed2K = ShokoHelper.GetEd2KString(video, true);
     List<WebhookField> output =
     [
       new()
       {
         Name = "ED2K",
-        Value = $"{dumpResult}"
+        Value = ed2K
       }
     ];
     output.AddRange(searchResult.List.Select(result => new WebhookField() { Name = "AniDB Link", Value = $"[{result.Title}](https://anidb.net/anime/{result.ID}/release/add)", Inline = true }));
