@@ -1,8 +1,8 @@
 ﻿name: Build (Dev)
 on:
   push:
-    tags:
-    - v*
+    branches:
+      - dev
 jobs:
   build:
     name: Build
@@ -14,9 +14,9 @@ jobs:
         with:
           dotnet-version: '8.x'
       - name: Build plugin
-        run: dotnet publish -c Release -f net8.0 WebhookDump.csproj
+        run: dotnet publish -c Release -f net8.0 WebhookDump/WebhookDump.csproj
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: WebhookDump
-          path: bin/Release/net8.0/publish
+          path: WebhookDump/bin/Release/net8.0/publish

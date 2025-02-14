@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RuntimeIdentifiers>win-x64;win;linux-x64;linux-x86</RuntimeIdentifiers>
+    <Platforms>x64;x86;AnyCPU</Platforms>
+    <EnableNETAnalyzers>True</EnableNETAnalyzers>
+    <AnalysisLevel>8.0-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>True</EnforceCodeStyleInBuild>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <GenerateAssemblyTitleAttribute>false</GenerateAssemblyTitleAttribute>
+    <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+    <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Shoko.Plugin.WebhookDump</RootNamespace>
+    <Version>1.2.0</Version>
+    <Authors>fearnlj01</Authors>
+    <AssemblyVersion>1.2.0</AssemblyVersion>
+    <FileVersion>1.2.0</FileVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>true</ImplicitUsings>
+    <Title>WebhookDump</Title>
+    <PackageLicenseUrl>https://raw.githubusercontent.com/fearnlj01/WebhookDump-ShokoPlugin/refs/heads/master/LICENSE</PackageLicenseUrl>
+    <RepositoryUrl>https://github.com/fearnlj01/WebhookDump-ShokoPlugin/</RepositoryUrl>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.1"/>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1"/>
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="8.10.0"/>
+    <PackageReference Include="NLog" Version="5.2.8"/>
+    <PackageReference Include="Shoko.Plugin.Abstractions" Version="4.2.0-beta3"/>
+  </ItemGroup>
+
+  <Target Name="OrganizeOutput" AfterTargets="Publish">
+    <ItemGroup>
+      <Dependencies Include="$(PublishDir)*.dll" Exclude="$(PublishDir)$(TargetFileName)"/>
+    </ItemGroup>
+    <Move SourceFiles="@(Dependencies)" DestinationFolder="$(PublishDir)WebhookDumpDependencies"/>
+  </Target>
+
+</Project>
