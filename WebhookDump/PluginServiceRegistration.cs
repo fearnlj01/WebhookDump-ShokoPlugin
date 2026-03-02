@@ -19,9 +19,11 @@ public class PluginServiceRegistration : IPluginServiceRegistration
 {
   public void RegisterServices(IServiceCollection serviceCollection, IApplicationPaths applicationPaths)
   {
-    var dbPath = Path.Combine(applicationPaths.ConfigurationsPath,
-      UuidUtility.GetV5(typeof(Plugin).FullName!).ToString(),
-      "WebhookDump.db");
+    var configurationPath = Path.Combine(applicationPaths.ConfigurationsPath,
+      UuidUtility.GetV5(typeof(Plugin).FullName!).ToString());
+    var dbPath = Path.Combine(configurationPath, "WebhookDump.db");
+
+    Directory.CreateDirectory(configurationPath);
 
     serviceCollection.AddHttpClient<DiscordClient>();
     SuppressHttpClientLoggingNLog();
