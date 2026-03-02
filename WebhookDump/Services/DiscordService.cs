@@ -1,41 +1,40 @@
 ﻿using System.Text;
-using Microsoft.Extensions.Options;
-using NLog;
-using Shoko.Plugin.Abstractions.DataModels;
-using Shoko.Plugin.Abstractions.Services;
-using Shoko.Plugin.WebhookDump.API;
+using Microsoft.Extensions.Logging;
+using Shoko.Abstractions.Metadata;
+using Shoko.Abstractions.Video;
+using Shoko.Plugin.WebhookDump.Configurations;
+using Shoko.Plugin.WebhookDump.Discord.Client;
+using Shoko.Plugin.WebhookDump.Discord.Models;
+using Shoko.Plugin.WebhookDump.Discord.Models.EmbedFields;
+using Shoko.Plugin.WebhookDump.Enums;
 using Shoko.Plugin.WebhookDump.Exceptions;
-using Shoko.Plugin.WebhookDump.Misc;
-using Shoko.Plugin.WebhookDump.Models.Discord;
-using Shoko.Plugin.WebhookDump.Models.Discord.EmbedFields;
-using Shoko.Plugin.WebhookDump.Models.Shoko.Enums;
-using Shoko.Plugin.WebhookDump.Settings;
+using Shoko.Plugin.WebhookDump.Extensions;
+using Shoko.Plugin.WebhookDump.Persistence;
 
 namespace Shoko.Plugin.WebhookDump.Services;
 
 // TODO: Implement error handling.
-public class DiscordService(
+public partial class DiscordService(
   DiscordClient discord,
   ShokoService shoko,
-  PersistentMessageDict cachedMessages,
-  PersistentFileIdDict cachedFiles,
-  IVideoService videoService,
-  IOptionsMonitor<WebhookSettings> webhookOptionsMonitor,
-  IOptionsMonitor<ShokoSettings> shokoOptionsMonitor)
+  ICachedData cachedData,
+  ILogger<DiscordService> logger,
+  Func<WebhookConfiguration> getWebhookConfiguration
+)
 {
-  private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-  private WebhookSettings WebhookSettings => webhookOptionsMonitor.CurrentValue;
-  private ShokoSettings ShokoSettings => shokoOptionsMonitor.CurrentValue;
+  private WebhookConfiguration WebhookConfiguration => getWebhookConfiguration();
+
+  private static string CrcMismatchColor => "#D85311";
 
   public async Task SendUnmatchedWebhooks(IReadOnlyCollection<int>? videoIds)
   {
     if (videoIds == null) return;
     foreach (var videoId in videoIds)
     {
-      if (!cachedFiles.Contains(videoId)) continue;
+      if (!await cachedData.IsFileTrackedAsync(videoId).ConfigureAwait(false)) continue;
 
-      var video = videoService.GetVideoByID(videoId);
-      if (video != null)
+      var video = shoko.GetVideoFromId(videoId);
+      if (video is not null)
         await SendUnmatchedWebhook(video).ConfigureAwait(false);
     }
   }
@@ -44,7 +43,9 @@ public class DiscordService(
   {
     foreach (var video in videos)
     {
-      if (!cachedMessages.TryGetValue(video.ID, out var messageState) || messageState is null) continue;
+      var messageState = await cachedData.GetMessageStateAsync(video.ID).ConfigureAwait(false);
+      if (messageState is null) continue;
+
       await PatchMatchedWebhook(messageState, video, episode, series).ConfigureAwait(false);
     }
   }
@@ -52,8 +53,8 @@ public class DiscordService(
   private async Task PatchMatchedWebhook(MinimalMessageState messageState, IVideo video, IEpisode episode,
     ISeries series)
   {
-    cachedFiles.Remove(video.ID);
-    cachedMessages.Remove(video.ID);
+    await cachedData.DeleteMessageStateAsync(video.ID).ConfigureAwait(false);
+    await cachedData.DeleteTrackedFilesAsync(video.ID).ConfigureAwait(false);
 
     var posterStream = series.DefaultPoster?.GetStream();
 
@@ -64,42 +65,42 @@ public class DiscordService(
 
   private async Task SendUnmatchedWebhook(IVideo video)
   {
-    var message = await CreateUnmatchedWebhookMessage(video).ConfigureAwait(false);
-    if (message == null) return;
+    var message = CreateUnmatchedWebhookMessage(video);
+    if (message is null) return;
 
-    var messageId = await discord.SendWebhook(message).ConfigureAwait(false);
+    var messageState = await discord.SendWebhook(message).ConfigureAwait(false);
 
-    if (messageId is not null)
-      cachedMessages.Add(video.ID, messageId);
+    if (messageState is not null)
+      await cachedData.SaveMessageStateAsync(video.ID, messageState).ConfigureAwait(false);
   }
 
-  private async Task<Message?> CreateUnmatchedWebhookMessage(IVideo video)
+  private Message? CreateUnmatchedWebhookMessage(IVideo video)
   {
     var embedBuilder = GetBaseEmbed(video, FileEventReason.Unmatched)
-      .SetDescription(WebhookSettings.Unmatched.EmbedText)
-      .AddField(new Field { Name = "ED2K", Value = ShokoService.GetSanitizedEd2K(video) });
+      .SetDescription(WebhookConfiguration.Unmatched.EmbedText)
+      .AddField(new Field { Name = "ED2K", Value = video.GetMarkdownSanitizedEd2K() });
     var webhookBuilder = GetBaseMessage(FileEventReason.Unmatched);
 
     try
     {
-      var titles = await shoko.SearchForTitles(video).ConfigureAwait(false) ?? [];
+      var titles = shoko.SearchForTitles(video);
       foreach (var series in titles)
         embedBuilder.AddField(new Field
         {
           Name = "AniDB Link",
-          Value = $"[{series.Title}](https://anidb.net/anime/{series.ID}/release/add)",
+          Value = $"[{series.Title}](https://anidb.net/anime/{series.AnidbAnime?.ID}/release/add)",
           Inline = true
         });
     }
     catch (RestrictedSearchResultException)
     {
-      Logger.Info(
-        "Unable to create webhook message - Top match is restricted and the settings prevent this being posted.");
+      LogUnableToCreateWebhookMessageTopMatchIsRestricted(logger);
       return null;
     }
 
-    if (video.Hashes.CRC != null && (!video.EarliestKnownName?.Contains(video.Hashes.CRC) ?? true))
-      embedBuilder.SetColor("#D85311");
+    var crc = video.GetCrc32();
+    if (!string.IsNullOrEmpty(crc) && (!video.EarliestKnownName?.Contains(crc) ?? true))
+      embedBuilder.SetColor(CrcMismatchColor);
 
     var embed = embedBuilder.Build();
     return webhookBuilder.SetEmbeds(embed).Build();
@@ -107,22 +108,27 @@ public class DiscordService(
 
   private Message CreateMatchedWebhook(IVideo video, IEpisode episode, ISeries series, bool includeThumbnail)
   {
+    if (series.CrossReferences.Count == 0)
+      throw new CrossReferenceException("Series has no cross references, cannot create matched webhook.");
+    if (episode.CrossReferences.Count == 0)
+      throw new CrossReferenceException("Episode has no cross references, cannot create matched webhook.");
+
     var messageBuilder = GetBaseMessage(FileEventReason.Matched);
     var embedBuilder = GetBaseEmbed(video, FileEventReason.Matched)
-      .SetDescription(WebhookSettings.Matched.EmbedText +
+      .SetDescription(WebhookConfiguration.Matched.EmbedText +
                       $"\nFile matched: <t:{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}:R>")
       .SetFields([
         new Field
         {
           Name = "Anime",
-          Value = $"[{series.PreferredTitle}](https://anidb.net/anime/{series.CrossReferences[0].AnidbAnimeID})",
+          Value = $"[{series.Title}](https://anidb.net/anime/{series.CrossReferences[0].AnidbAnimeID})",
           Inline = true
         },
         new Field
         {
           Name = "Episode",
           Value =
-            $"{episode.EpisodeNumber} - [{episode.PreferredTitle}](https://anidb.net/episode/{episode.CrossReferences[0].AnidbEpisodeID})",
+            $"{episode.EpisodeNumber} - [{episode.Title}](https://anidb.net/episode/{episode.CrossReferences[0].AnidbEpisodeID})",
           Inline = true
         }
       ]);
@@ -140,33 +146,28 @@ public class DiscordService(
   private Embed.Builder GetBaseEmbed(IVideo video, FileEventReason reason)
   {
     return Embed.Create()
-      .SetTitle(GetTitle(video.EarliestKnownName))
-      .SetUrl(ShokoSettings.PublicUrl)
+      .SetTitle(video.EarliestKnownName.EscapeMarkdownPairs())
+      .SetUrl(WebhookConfiguration.ShokoPublicUrl)
       .SetFooter(GetFooter(video))
       .SetColor(reason is FileEventReason.Matched
-        ? WebhookSettings.Matched.EmbedColor
-        : WebhookSettings.Unmatched.EmbedColor);
+        ? WebhookConfiguration.Matched.EmbedColor
+        : WebhookConfiguration.Unmatched.EmbedColor);
   }
 
   private Message.Builder GetBaseMessage(FileEventReason reason)
   {
     return Message.Create()
-      .SetUsername(WebhookSettings.Username)
-      .SetAvatarUrl(WebhookSettings.AvatarUrl)
+      .SetUsername(WebhookConfiguration.Username)
+      .SetAvatarUrl(WebhookConfiguration.AvatarUrl)
       .SetContent(reason is FileEventReason.Matched
-        ? WebhookSettings.Matched.MessageText
-        : WebhookSettings.Unmatched.MessageText);
-  }
-
-  private static string GetTitle(string? title)
-  {
-    return StringHelper.EscapeMarkdownPairs(title ?? string.Empty);
+        ? WebhookConfiguration.Matched.MessageText
+        : WebhookConfiguration.Unmatched.MessageText);
   }
 
   private static Footer GetFooter(IVideo video)
   {
     var sb = new StringBuilder();
-    var crc = video.Hashes.CRC ?? string.Empty;
+    var crc = video.GetCrc32() ?? string.Empty;
     var crcMatch = video.EarliestKnownName?.Contains(crc) ?? false;
 
     sb.Append("File ID: ").Append(video.ID)
@@ -176,4 +177,8 @@ public class DiscordService(
 
     return new Footer { Text = sb.ToString() };
   }
+
+  [LoggerMessage(LogLevel.Information,
+    "Unable to create webhook message - Top match is restricted and the settings prevent this being posted.")]
+  static partial void LogUnableToCreateWebhookMessageTopMatchIsRestricted(ILogger<DiscordService> logger);
 }

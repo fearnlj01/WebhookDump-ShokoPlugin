@@ -1,78 +1,89 @@
-﻿using System.Globalization;
-using Microsoft.Extensions.Options;
-using NLog;
-using Shoko.Plugin.Abstractions.DataModels;
-using Shoko.Plugin.WebhookDump.API;
+﻿using Microsoft.Extensions.Logging;
+using Shoko.Abstractions.Metadata.Anidb;
+using Shoko.Abstractions.Services;
+using Shoko.Abstractions.Video;
+using Shoko.Plugin.WebhookDump.Configurations;
+using Shoko.Plugin.WebhookDump.Configurations.Webhook;
 using Shoko.Plugin.WebhookDump.Exceptions;
-using Shoko.Plugin.WebhookDump.Misc;
-using Shoko.Plugin.WebhookDump.Models.Shoko.Series;
-using Shoko.Plugin.WebhookDump.Settings;
+using Shoko.Plugin.WebhookDump.Extensions;
+using Shoko.Plugin.WebhookDump.Persistence;
 
 namespace Shoko.Plugin.WebhookDump.Services;
 
-// TODO: Implement error handling.
-public class ShokoService(
-  ShokoClient client,
-  PersistentFileIdDict cachedFiles,
-  IOptionsMonitor<WebhookSettings> webhookOptionsMonitor)
+public partial class ShokoService(
+  ICachedData fileCachedData,
+  IAnidbService anidbService,
+  IVideoService videoService,
+  IVideoHashingService videoHashingService,
+  IVideoReleaseService videoReleaseService,
+  Func<WebhookConfiguration> getWebhookConfiguration,
+  ILogger<ShokoService> logger
+) : IInitializable
 {
-  private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-  private WebhookSettings WebhookSettings => webhookOptionsMonitor.CurrentValue;
+  private RestrictionConfiguration RestrictionSettings => getWebhookConfiguration().Restrictions;
+
+  public Task InitializeAsync(CancellationToken cancellationToken = default)
+  {
+    var hashingProviders = videoHashingService.GetAvailableProviders();
+    var hashTypes = videoHashingService.AllAvailableHashTypes;
+
+    var targetProvider = hashingProviders.FirstOrDefault(p => p.Name == "Built-In Hasher");
+
+    if (targetProvider is null || !hashTypes.Contains("CRC32")) return Task.CompletedTask; // Oh well...
+
+    if (targetProvider.EnabledHashTypes.Add("CRC32"))
+      videoHashingService.UpdateProviders(targetProvider);
+
+    return Task.CompletedTask;
+  }
 
   public async Task DumpFile(IVideo video)
   {
-    Logger.Info(CultureInfo.InvariantCulture, "AVDumping file (FileId={id})", video.ID);
-    cachedFiles.Add(video.ID, DateTimeOffset.UtcNow);
-    await client.DumpFile(video.ID).ConfigureAwait(false);
+    await anidbService.AvdumpVideos(video).ConfigureAwait(false);
   }
 
-  public async Task RescanFile(IVideo video, int matchAttempts)
+  public async Task RescanFile(IVideo video, int matchAttempts = 1)
   {
-    if (!cachedFiles.Contains(video.ID)) return;
+    // We only want to rescan the file if it's already being tracked.
+    if (!await fileCachedData.IsFileTrackedAsync(video.ID).ConfigureAwait(false)) return;
 
-    Logger.Info(CultureInfo.InvariantCulture, "Automatically rescanning file (FileId={id},Attempt={attempts})",
-      video.ID, matchAttempts);
-    await client.ScanFile(video.ID).ConfigureAwait(false);
+    LogRescanningFile(logger, video.ID, matchAttempts);
+    await videoReleaseService.ScheduleFindReleaseForVideo(video, true).ConfigureAwait(false);
   }
 
-  public async Task<IList<AniDB>?> SearchForTitles(IVideo video)
+  public IVideo? GetVideoFromId(int videoId)
   {
-    var searchResult = await client.MatchTitle(video.EarliestKnownName ?? string.Empty).ConfigureAwait(false);
-    if (searchResult is not { Total: > 0 }) return null;
+    return videoService.GetVideoByID(videoId);
+  }
 
-    if (!WebhookSettings.Restrictions.PostIfTopMatchRestricted && searchResult.List[0].Restricted)
+  public IReadOnlyList<IAnidbAnimeSearchResult> SearchForTitles(IVideo video)
+  {
+    var title = video.EarliestKnownName.ExtractFileTitle();
+    LogSearchingForTitleTitle(logger, title);
+    var searchResult = anidbService.Search(title, true);
+    if (searchResult is not { Count: > 0 }) return searchResult;
+
+    if (!RestrictionSettings.PostIfTopMatchRestricted && ((searchResult[0].ShokoSeries?.Restricted ?? false) ||
+                                                          (searchResult[0].AnidbAnime?.Restricted ?? false)))
       throw new RestrictedSearchResultException(
         "Top match in title search is restricted and the webhook is configured to not be sent.");
 
-    if (!WebhookSettings.Restrictions.ShowRestrictedTitles)
-      searchResult.List.RemoveAll(series => series.Restricted);
+    var showRestricted = RestrictionSettings.ShowRestrictedTitles;
+    var filteredResults = searchResult.Where(sr =>
+      showRestricted || !(
+        (sr.AnidbAnime?.Restricted ?? false) || (sr.ShokoSeries?.Restricted ?? false))
+    );
 
-    searchResult.List.Sort((a, b) =>
-    {
-      switch (a.IsCurrentlyAiring)
-      {
-        case true when b.IsCurrentlyAiring:
-        {
-          if (!a.AirDate.HasValue || !b.AirDate.HasValue) return 0; // Can't happen - just guarantees
-          if (a.AirDate.Value == b.AirDate.Value) return 0;
-          return a.AirDate > b.AirDate.Value ? -1 : 1;
-        }
-        case true:
-          return -1;
-        default:
-          return b.IsCurrentlyAiring ? 1 : 0;
-      }
-    });
+    var sortedResults = filteredResults
+      .OrderByDescending(sr => sr.IsCurrentlyAiring())
+      .ThenByDescending(sr => sr.AnidbAnime?.AirDate ?? sr.ShokoSeries?.AirDate);
 
-    return searchResult.List.Take(3).ToList();
+    return [.. sortedResults.Take(3)];
   }
 
-  public static string GetSanitizedEd2K(IVideo video)
-  {
-    var hash = video.Hashes.ED2K;
-    var size = video.Size;
-    var fileName = StringHelper.EscapeMarkdownPairs(video.EarliestKnownName ?? string.Empty);
+  [LoggerMessage(LogLevel.Information, "Rescanning file (FileId={id},Attempt={attempts})")]
+  static partial void LogRescanningFile(ILogger<ShokoService> logger, int id, int attempts);
 
-    return $"ed2k://|file|{fileName}|{size}|{hash}|/";
-  }
+  [LoggerMessage(LogLevel.Trace, "Searching for title: '{title}'")]
+  static partial void LogSearchingForTitleTitle(ILogger<ShokoService> logger, string title);
 }
