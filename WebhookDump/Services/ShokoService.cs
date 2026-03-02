@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using Shoko.Abstractions.Config;
 using Shoko.Abstractions.Metadata.Anidb;
 using Shoko.Abstractions.Services;
 using Shoko.Abstractions.Video;
@@ -16,11 +17,11 @@ public partial class ShokoService(
   IVideoService videoService,
   IVideoHashingService videoHashingService,
   IVideoReleaseService videoReleaseService,
-  Func<WebhookConfiguration> getWebhookConfiguration,
+  ConfigurationProvider<WebhookConfiguration> webhookConfigurationProvider,
   ILogger<ShokoService> logger
 ) : IInitializable
 {
-  private RestrictionConfiguration RestrictionSettings => getWebhookConfiguration().Restrictions;
+  private RestrictionConfiguration RestrictionSettings => webhookConfigurationProvider.Load().Restrictions;
 
   public Task InitializeAsync(CancellationToken cancellationToken = default)
   {

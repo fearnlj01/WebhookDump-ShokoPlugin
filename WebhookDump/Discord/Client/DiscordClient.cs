@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
+using Shoko.Abstractions.Config;
 using Shoko.Plugin.WebhookDump.Configurations;
 using Shoko.Plugin.WebhookDump.Discord.Models;
 
@@ -23,13 +24,13 @@ public partial class DiscordClient
 
   public DiscordClient(
     HttpClient httpClient,
-    Func<WebhookConfiguration> getWebhookConfiguration,
+    ConfigurationProvider<WebhookConfiguration> webhookConfigurationProvider,
     ILogger<DiscordClient> logger
   )
   {
     _httpClient = httpClient;
     _logger = logger;
-    var configuration = getWebhookConfiguration();
+    var configuration = webhookConfigurationProvider.Load();
 
     httpClient.BaseAddress =
       new Uri(configuration.WebhookUrl.EndsWith('/') ? configuration.WebhookUrl : configuration.WebhookUrl + '/');

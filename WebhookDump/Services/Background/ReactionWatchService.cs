@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Shoko.Abstractions.Config;
 using Shoko.Plugin.WebhookDump.Configurations;
 using Shoko.Plugin.WebhookDump.Discord.Client;
 using Shoko.Plugin.WebhookDump.Persistence;
@@ -8,12 +9,12 @@ namespace Shoko.Plugin.WebhookDump.Services.Background;
 
 public class ReactionWatchService(
   ICachedData messageCachedData,
-  Func<AutomaticMatchConfiguration> getAutoMatchConfiguration,
+  ConfigurationProvider<AutomaticMatchConfiguration> autoMatchConfigurationProvider,
   ShokoService shokoService,
   IServiceScopeFactory scopeFactory
 ) : BackgroundService
 {
-  private bool AttemptAutoMatch => getAutoMatchConfiguration() is { WatchReactions: true, Enabled: true };
+  private bool AttemptAutoMatch => autoMatchConfigurationProvider.Load() is { WatchReactions: true, Enabled: true };
   private static TimeSpan Interval => TimeSpan.FromMinutes(15);
 
   protected override async Task ExecuteAsync(CancellationToken stoppingToken)

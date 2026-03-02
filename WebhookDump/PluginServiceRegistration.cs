@@ -3,9 +3,7 @@ using NLog;
 using NLog.Config;
 using NLog.Targets;
 using Shoko.Abstractions.Plugin;
-using Shoko.Abstractions.Services;
 using Shoko.Abstractions.Utilities;
-using Shoko.Plugin.WebhookDump.Configurations;
 using Shoko.Plugin.WebhookDump.Discord.Client;
 using Shoko.Plugin.WebhookDump.Extensions;
 using Shoko.Plugin.WebhookDump.Persistence;
@@ -25,14 +23,12 @@ public class PluginServiceRegistration : IPluginServiceRegistration
 
     Directory.CreateDirectory(configurationPath);
 
-    serviceCollection.AddHttpClient<DiscordClient>();
+    serviceCollection
+      .AddHttpClient<DiscordClient>();
+
     SuppressHttpClientLoggingNLog();
 
     serviceCollection
-      .AddSingleton<Func<WebhookConfiguration>>(sp =>
-        () => sp.GetRequiredService<IConfigurationService>().Load<WebhookConfiguration>())
-      .AddSingleton<Func<AutomaticMatchConfiguration>>(sp =>
-        () => sp.GetRequiredService<IConfigurationService>().Load<AutomaticMatchConfiguration>())
       .AddSingleton<ICachedData>(_ = new CachedData(dbPath))
       .AddInitializedSingleton<ShokoEventSubscriber>();
 

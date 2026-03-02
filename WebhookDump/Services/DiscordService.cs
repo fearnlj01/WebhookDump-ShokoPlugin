@@ -1,5 +1,6 @@
 ﻿using System.Text;
 using Microsoft.Extensions.Logging;
+using Shoko.Abstractions.Config;
 using Shoko.Abstractions.Metadata;
 using Shoko.Abstractions.Video;
 using Shoko.Plugin.WebhookDump.Configurations;
@@ -19,10 +20,10 @@ public partial class DiscordService(
   ShokoService shoko,
   ICachedData cachedData,
   ILogger<DiscordService> logger,
-  Func<WebhookConfiguration> getWebhookConfiguration
+  ConfigurationProvider<WebhookConfiguration> webhookConfigurationProvider
 )
 {
-  private WebhookConfiguration WebhookConfiguration => getWebhookConfiguration();
+  private WebhookConfiguration WebhookConfiguration => webhookConfigurationProvider.Load();
 
   private static string CrcMismatchColor => "#D85311";
 
