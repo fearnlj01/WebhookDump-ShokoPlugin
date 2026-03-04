@@ -64,22 +64,20 @@ public partial class ShokoService(
     var searchResult = anidbService.Search(title, true);
     if (searchResult is not { Count: > 0 }) return searchResult;
 
-    if (!RestrictionSettings.PostIfTopMatchRestricted && ((searchResult[0].ShokoSeries?.Restricted ?? false) ||
-                                                          (searchResult[0].AnidbAnime?.Restricted ?? false)))
+    if (!RestrictionSettings.PostIfTopMatchRestricted && searchResult[0].IsRestricted)
       throw new RestrictedSearchResultException(
         "Top match in title search is restricted and the webhook is configured to not be sent.");
 
     var showRestricted = RestrictionSettings.ShowRestrictedTitles;
-    var filteredResults = searchResult.Where(sr =>
-      showRestricted || !(
-        (sr.AnidbAnime?.Restricted ?? false) || (sr.ShokoSeries?.Restricted ?? false))
-    );
 
-    var sortedResults = filteredResults
-      .OrderByDescending(sr => sr.IsCurrentlyAiring)
-      .ThenByDescending(sr => sr.AnidbAnime?.AirDate ?? sr.ShokoSeries?.AirDate);
+    var query = searchResult
+      .Where(sr => sr.Distance <= 0.5)
+      .Where(sr => showRestricted || !sr.IsRestricted)
+      .OrderByDescending(sr => sr.ExactMatch)
+      .ThenByDescending(sr => sr.IsCurrentlyAiring)
+      .ThenByDescending(sr => sr.AirDate);
 
-    return [.. sortedResults.Take(3)];
+    return [.. query.Take(3)];
   }
 
   [LoggerMessage(LogLevel.Information, "Rescanning file (FileId={id},Attempt={attempts})")]

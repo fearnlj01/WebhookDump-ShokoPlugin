@@ -37,5 +37,9 @@ public static class ShokoExtensions
   {
     public bool IsCurrentlyAiring =>
       anime.AnidbAnime?.IsCurrentlyAiring ?? anime.ShokoSeries?.IsCurrentlyAiring ?? false;
+
+    public bool IsRestricted => anime.AnidbAnime?.Restricted ?? anime.ShokoSeries?.Restricted ?? false;
+
+    public DateTime? AirDate => anime.AnidbAnime?.AirDate ?? anime.ShokoSeries?.AirDate;
   }
 }
