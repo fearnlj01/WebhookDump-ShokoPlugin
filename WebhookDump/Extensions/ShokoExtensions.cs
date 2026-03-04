@@ -10,35 +10,32 @@ public static class ShokoExtensions
 {
   extension(IVideo video)
   {
-    public string GetMarkdownSanitizedEd2K()
-    {
-      return $"ed2k://|file|{video.EarliestKnownName.EscapeMarkdownPairs()}|{video.Size}|{video.ED2K}|/";
-    }
+    public string? Crc32 => video.Hashes.FirstOrDefault(hd => hd.Type == "CRC32")?.Value;
 
-    public string? GetCrc32()
-    {
-      return video.Hashes.FirstOrDefault(hd => hd.Type == "CRC32")?.Value;
-    }
+    public string MarkdownSanitizedEd2K =>
+      $"ed2k://|file|{video.EarliestKnownName.EscapeMarkdownPairs()}|{video.Size}|{video.ED2K}|/";
   }
 
   extension(ISeries series)
   {
-    public bool IsCurrentlyAiring()
-    {
-      return series.AirDate.HasValue &&
-             (
-               (series.EndDate.HasValue && series.AirDate.Value <= DateTime.Now && series.EndDate.Value >= DateTime.Now)
-               || (!series.EndDate.HasValue && series.AirDate.Value <= DateTime.Now)
-             );
-    }
+    private bool IsCurrentlyAiring => series.AirDate.HasValue &&
+                                      DateTime.Now is var now &&
+                                      (
+                                        (
+                                          series.EndDate.HasValue &&
+                                          series.AirDate.Value <= now
+                                          && series.EndDate.Value >= now
+                                        ) ||
+                                        (
+                                          !series.EndDate.HasValue &&
+                                          series.AirDate.Value <= now
+                                        )
+                                      );
   }
 
   extension(IAnidbAnimeSearchResult anime)
   {
-    public bool IsCurrentlyAiring()
-    {
-      return anime.AnidbAnime?.IsCurrentlyAiring() ??
-             (anime.ShokoSeries is not null && anime.ShokoSeries.IsCurrentlyAiring());
-    }
+    public bool IsCurrentlyAiring =>
+      anime.AnidbAnime?.IsCurrentlyAiring ?? anime.ShokoSeries?.IsCurrentlyAiring ?? false;
   }
 }

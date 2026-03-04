@@ -9,12 +9,14 @@ namespace Shoko.Plugin.WebhookDump.Services.Background;
 
 public class ReactionWatchService(
   ICachedData messageCachedData,
-  ConfigurationProvider<AutomaticMatchConfiguration> autoMatchConfigurationProvider,
+  ConfigurationProvider<PluginConfiguration> pluginConfigurationProvider,
   ShokoService shokoService,
   IServiceScopeFactory scopeFactory
 ) : BackgroundService
 {
-  private bool AttemptAutoMatch => autoMatchConfigurationProvider.Load() is { WatchReactions: true, Enabled: true };
+  private bool AttemptAutoMatch => pluginConfigurationProvider.Load().AutomaticMatch is
+    { WatchReactions: true, Enabled: true };
+
   private static TimeSpan Interval => TimeSpan.FromMinutes(15);
 
   protected override async Task ExecuteAsync(CancellationToken stoppingToken)

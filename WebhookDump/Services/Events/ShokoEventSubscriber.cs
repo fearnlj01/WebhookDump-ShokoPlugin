@@ -11,20 +11,19 @@ using Shoko.Plugin.WebhookDump.Persistence;
 
 namespace Shoko.Plugin.WebhookDump.Services.Events;
 
-public partial class ShokoEventSubscriber : IDisposable, IInitializable
+public partial class ShokoEventSubscriber : IDisposable
 {
   private readonly IAnidbService _anidbService;
-  private readonly ConfigurationProvider<AutomaticMatchConfiguration> _autoMatchConfigurationProvider;
   private readonly ICachedData _cachedData;
 
   private readonly ConcurrentDictionary<int, CancellationTokenSource> _cancellationTokens = [];
   private readonly ILogger<ShokoEventSubscriber> _logger;
   private readonly IMetadataService _metadataService;
+  private readonly ConfigurationProvider<PluginConfiguration> _pluginConfigurationProvider;
   private readonly IServiceScopeFactory _scopeFactory;
   private readonly ShokoService _shokoService;
   private readonly IVideoReleaseService _videoReleaseService;
   private readonly IVideoService _videoService;
-  private readonly ConfigurationProvider<WebhookConfiguration> _webhookConfigurationProvider;
 
   public ShokoEventSubscriber(
     IVideoService videoService,
@@ -34,8 +33,7 @@ public partial class ShokoEventSubscriber : IDisposable, IInitializable
     ICachedData cachedData,
     ShokoService shokoService,
     ILogger<ShokoEventSubscriber> logger,
-    ConfigurationProvider<AutomaticMatchConfiguration> autoMatchConfigurationProvider,
-    ConfigurationProvider<WebhookConfiguration> webhookConfigurationProvider,
+    ConfigurationProvider<PluginConfiguration> pluginConfigurationProvider,
     IServiceScopeFactory scopeFactory
   )
   {
@@ -48,8 +46,7 @@ public partial class ShokoEventSubscriber : IDisposable, IInitializable
     _metadataService = metadataService;
     _anidbService = anidbService;
 
-    _webhookConfigurationProvider = webhookConfigurationProvider;
-    _autoMatchConfigurationProvider = autoMatchConfigurationProvider;
+    _pluginConfigurationProvider = pluginConfigurationProvider;
 
     _videoReleaseService.SearchCompleted += OnSearchCompleted;
     _videoReleaseService.ReleaseSaved += OnReleaseSaved;
@@ -58,8 +55,8 @@ public partial class ShokoEventSubscriber : IDisposable, IInitializable
     _metadataService.EpisodeAdded += OnEpisodeAdded;
   }
 
-  private WebhookConfiguration WebhookConfiguration => _webhookConfigurationProvider.Load();
-  private AutomaticMatchConfiguration AutoMatchConfiguration => _autoMatchConfigurationProvider.Load();
+  private WebhookConfiguration WebhookConfiguration => _pluginConfigurationProvider.Load().Webhook;
+  private AutomaticMatchConfiguration AutoMatchConfiguration => _pluginConfigurationProvider.Load().AutomaticMatch;
 
   public void Dispose()
   {
@@ -86,11 +83,6 @@ public partial class ShokoEventSubscriber : IDisposable, IInitializable
     }
 
     GC.SuppressFinalize(this);
-  }
-
-  public Task InitializeAsync(CancellationToken cancellationToken = default)
-  {
-    return Task.CompletedTask;
   }
 
   [LoggerMessage(LogLevel.Debug,

@@ -20,10 +20,10 @@ public partial class DiscordService(
   ShokoService shoko,
   ICachedData cachedData,
   ILogger<DiscordService> logger,
-  ConfigurationProvider<WebhookConfiguration> webhookConfigurationProvider
+  ConfigurationProvider<PluginConfiguration> pluginConfigurationProvider
 )
 {
-  private WebhookConfiguration WebhookConfiguration => webhookConfigurationProvider.Load();
+  private WebhookConfiguration WebhookConfiguration => pluginConfigurationProvider.Load().Webhook;
 
   private static string CrcMismatchColor => "#D85311";
 
@@ -79,7 +79,7 @@ public partial class DiscordService(
   {
     var embedBuilder = GetBaseEmbed(video, FileEventReason.Unmatched)
       .SetDescription(WebhookConfiguration.Unmatched.EmbedText)
-      .AddField(new Field { Name = "ED2K", Value = video.GetMarkdownSanitizedEd2K() });
+      .AddField(new Field { Name = "ED2K", Value = video.MarkdownSanitizedEd2K });
     var webhookBuilder = GetBaseMessage(FileEventReason.Unmatched);
 
     try
@@ -99,7 +99,7 @@ public partial class DiscordService(
       return null;
     }
 
-    var crc = video.GetCrc32();
+    var crc = video.Crc32;
     if (!string.IsNullOrEmpty(crc) && (!video.EarliestKnownName?.Contains(crc) ?? true))
       embedBuilder.SetColor(CrcMismatchColor);
 
@@ -168,7 +168,7 @@ public partial class DiscordService(
   private static Footer GetFooter(IVideo video)
   {
     var sb = new StringBuilder();
-    var crc = video.GetCrc32() ?? string.Empty;
+    var crc = video.Crc32 ?? string.Empty;
     var crcMatch = video.EarliestKnownName?.Contains(crc) ?? false;
 
     sb.Append("File ID: ").Append(video.ID)

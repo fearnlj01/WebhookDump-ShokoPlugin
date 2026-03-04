@@ -24,16 +24,16 @@ public partial class DiscordClient
 
   public DiscordClient(
     HttpClient httpClient,
-    ConfigurationProvider<WebhookConfiguration> webhookConfigurationProvider,
+    ConfigurationProvider<PluginConfiguration> pluginConfigurationProvider,
     ILogger<DiscordClient> logger
   )
   {
     _httpClient = httpClient;
     _logger = logger;
-    var configuration = webhookConfigurationProvider.Load();
+    var webhookUrl = pluginConfigurationProvider.Load().Webhook.WebhookUrl;
 
     httpClient.BaseAddress =
-      new Uri(configuration.WebhookUrl.EndsWith('/') ? configuration.WebhookUrl : configuration.WebhookUrl + '/');
+      new Uri(webhookUrl.EndsWith('/') ? webhookUrl : webhookUrl + '/');
   }
 
   public async Task<MinimalMessageState?> SendWebhook(Message webhook)
@@ -55,27 +55,28 @@ public partial class DiscordClient
     return null;
   }
 
-  private async Task<bool> PatchWebhook(string messageId, Message webhook)
+  private async Task PatchWebhook(string messageId, Message webhook)
   {
     var uri = new Uri($"messages/{messageId}", UriKind.Relative);
 
     try
     {
       var response = await _httpClient.PatchAsJsonAsync(uri, webhook, SerializerOptions).ConfigureAwait(false);
-      return response.IsSuccessStatusCode;
     }
     catch
     {
       LogExceptionThrownWhenPatchingAPreviousWebhookMessageMessageidId(messageId);
       LogAnExceptionOccuredInTheWebhookdumpPlugin();
     }
-
-    return false;
   }
 
-  public async Task<bool> PatchWebhook(string messageId, Message webhook, Stream? imageStream)
+  public async Task PatchWebhook(string messageId, Message webhook, Stream? imageStream)
   {
-    if (imageStream == null) return await PatchWebhook(messageId, webhook).ConfigureAwait(false);
+    if (imageStream is null)
+    {
+      await PatchWebhook(messageId, webhook).ConfigureAwait(false);
+      return;
+    }
 
     var uri = new Uri($"messages/{messageId}", UriKind.Relative);
     var form = new MultipartFormDataContent();
@@ -92,16 +93,13 @@ public partial class DiscordClient
 
     try
     {
-      var response = await _httpClient.PatchAsync(uri, form).ConfigureAwait(false);
-      return response.IsSuccessStatusCode;
+      _ = await _httpClient.PatchAsync(uri, form).ConfigureAwait(false);
     }
     catch
     {
       LogExceptionThrownWhenPatchingAPreviousWebhookMessageMessageidId(messageId);
       LogAnExceptionOccuredInTheWebhookdumpPlugin();
     }
-
-    return false;
   }
 
   public async Task<MinimalMessageState?> GetWebhookMessageState(string messageId)

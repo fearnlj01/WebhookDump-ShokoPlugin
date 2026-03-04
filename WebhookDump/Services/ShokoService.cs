@@ -17,13 +17,13 @@ public partial class ShokoService(
   IVideoService videoService,
   IVideoHashingService videoHashingService,
   IVideoReleaseService videoReleaseService,
-  ConfigurationProvider<WebhookConfiguration> webhookConfigurationProvider,
+  ConfigurationProvider<PluginConfiguration> pluginConfigurationProvider,
   ILogger<ShokoService> logger
-) : IInitializable
+)
 {
-  private RestrictionConfiguration RestrictionSettings => webhookConfigurationProvider.Load().Restrictions;
+  private RestrictionConfiguration RestrictionSettings => pluginConfigurationProvider.Load().Webhook.Restrictions;
 
-  public Task InitializeAsync(CancellationToken cancellationToken = default)
+  public Task InitializeAsync()
   {
     var hashingProviders = videoHashingService.GetAvailableProviders();
     var hashTypes = videoHashingService.AllAvailableHashTypes;
@@ -76,7 +76,7 @@ public partial class ShokoService(
     );
 
     var sortedResults = filteredResults
-      .OrderByDescending(sr => sr.IsCurrentlyAiring())
+      .OrderByDescending(sr => sr.IsCurrentlyAiring)
       .ThenByDescending(sr => sr.AnidbAnime?.AirDate ?? sr.ShokoSeries?.AirDate);
 
     return [.. sortedResults.Take(3)];

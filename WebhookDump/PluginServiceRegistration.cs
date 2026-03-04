@@ -1,11 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
-using NLog;
-using NLog.Config;
-using NLog.Targets;
 using Shoko.Abstractions.Plugin;
-using Shoko.Abstractions.Utilities;
 using Shoko.Plugin.WebhookDump.Discord.Client;
-using Shoko.Plugin.WebhookDump.Extensions;
 using Shoko.Plugin.WebhookDump.Persistence;
 using Shoko.Plugin.WebhookDump.Services;
 using Shoko.Plugin.WebhookDump.Services.Background;
@@ -17,68 +12,21 @@ public class PluginServiceRegistration : IPluginServiceRegistration
 {
   public void RegisterServices(IServiceCollection serviceCollection, IApplicationPaths applicationPaths)
   {
-    var configurationPath = Path.Combine(applicationPaths.ConfigurationsPath,
-      UuidUtility.GetV5(typeof(Plugin).FullName!).ToString());
-    var dbPath = Path.Combine(configurationPath, "WebhookDump.db");
-
-    Directory.CreateDirectory(configurationPath);
-
     serviceCollection
       .AddHttpClient<DiscordClient>();
 
-    SuppressHttpClientLoggingNLog();
+    serviceCollection
+      .AddSingleton<ICachedDataProxy, CachedDataProxy>()
+      .AddSingleton<ICachedData>(sp => sp.GetRequiredService<ICachedDataProxy>())
+      .AddSingleton<ShokoEventSubscriber>();
 
     serviceCollection
-      .AddSingleton<ICachedData>(_ = new CachedData(dbPath))
-      .AddInitializedSingleton<ShokoEventSubscriber>();
-
-    serviceCollection
+      .AddHostedService<PluginStartupService>()
       .AddHostedService<DatabaseCleanupService>()
-      .AddHostedService<ReactionWatchService>()
-      .AddHostedService<SingletonInitializationService>();
+      .AddHostedService<ReactionWatchService>();
 
     serviceCollection
       .AddTransient<ShokoService>()
       .AddTransient<DiscordService>();
-  }
-
-  private static void SuppressHttpClientLoggingNLog()
-  {
-    try
-    {
-      var config = LogManager.Configuration;
-      if (config is null) return;
-
-      const string ruleMarker = "WebhookDump.DropHttpClientFactoryLogging";
-      if (config.Variables.ContainsKey(ruleMarker)) return;
-
-      const string nullTargetName = "WebhookDump_Null";
-      if (config.FindTargetByName(nullTargetName) is not NullTarget nullTarget)
-      {
-        nullTarget = new NullTarget { Name = nullTargetName };
-        config.AddTarget(nullTarget);
-      }
-
-      var patterns = new[]
-      {
-        "System.Net.Http.HttpClient.*",
-        "Microsoft.Extensions.Http.DefaultHttpClientFactory.*",
-        "Microsoft.Extensions.Http.DefaultHttpClientFactory"
-      };
-
-      foreach (var pattern in patterns)
-      {
-        var rule = new LoggingRule(pattern, LogLevel.Trace, LogLevel.Warn, nullTarget) { Final = true };
-        config.LoggingRules.Insert(0, rule);
-      }
-
-      config.Variables[ruleMarker] = "true";
-      LogManager.Configuration = config;
-      LogManager.ReconfigExistingLoggers();
-    }
-    catch
-    {
-      // It's only a logging error...
-    }
   }
 }

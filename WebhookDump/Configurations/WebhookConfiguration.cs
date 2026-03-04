@@ -1,6 +1,5 @@
 ﻿using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
-using Shoko.Abstractions.Config;
 using Shoko.Abstractions.Config.Attributes;
 using Shoko.Abstractions.Config.Enums;
 using Shoko.Plugin.WebhookDump.Configurations.Webhook;
@@ -9,25 +8,33 @@ namespace Shoko.Plugin.WebhookDump.Configurations;
 
 [Display(Name = "Webhook")]
 [Section(DisplaySectionType.Tab)]
-public class WebhookConfiguration : IConfiguration
+public class WebhookConfiguration
 {
   [Display(Name = "Enabled", Description = "Whether to enable webhook functionality")]
-  [DefaultValue(2)]
+  [Visibility(Size = DisplayElementSize.Full)]
+  [DefaultValue(true)]
   public bool Enabled { get; set; } = true;
 
   [Display(Name = "Webhook URL", Description = "The URL to send webhook requests to")]
+  [Url]
+  [Visibility(Size = DisplayElementSize.Full)]
   [DefaultValue("https://discord.com/api/webhooks/{webhook.id}/{webhook.token}")]
   public string WebhookUrl { get; set; } = "https://discord.com/api/webhooks/{webhook.id}/{webhook.token}";
 
   [Display(Name = "Shoko Public URL", Description = "The URL [& Port] that the Shoko server can be accessed at")]
+  [Url]
+  [Visibility(Size = DisplayElementSize.Full)]
   [DefaultValue("http://localhost:8111")]
-  public string ShokoPublicUrl { get; set; } = string.Empty;
+  public string ShokoPublicUrl { get; set; } = "http://localhost:8111";
 
   [Display(Name = "Username", Description = "The username to use for the webhook")]
   [DefaultValue("Shoko")]
+  [Visibility(Size = DisplayElementSize.Full)]
   public string Username { get; set; } = "Shoko";
 
   [Display(Name = "Avatar URL", Description = "The URL of the avatar to use for the webhook")]
+  [Url]
+  [Visibility(Size = DisplayElementSize.Full)]
   [DefaultValue("https://raw.githubusercontent.com/ShokoAnime/ShokoServer/refs/heads/master/.github/images/Shoko.png")]
   public string AvatarUrl { get; set; } =
     "https://raw.githubusercontent.com/ShokoAnime/ShokoServer/refs/heads/master/.github/images/Shoko.png";

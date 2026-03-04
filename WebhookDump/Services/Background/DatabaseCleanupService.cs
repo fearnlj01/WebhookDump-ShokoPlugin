@@ -5,6 +5,7 @@ namespace Shoko.Plugin.WebhookDump.Services.Background;
 
 public class DatabaseCleanupService(ICachedData cachedData) : BackgroundService
 {
+  // TODO: Ensure this plugin registers to a TODO'd event from the plugin repository, confirming it is alive.
   private static TimeSpan Interval => TimeSpan.FromHours(1);
   private static TimeSpan CleanupInterval => TimeSpan.FromDays(7);
 

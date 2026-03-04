@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using Shoko.Abstractions.Config.Attributes;
+using Shoko.Abstractions.Config.Enums;
 
 namespace Shoko.Plugin.WebhookDump.Configurations.Webhook;
 
@@ -10,11 +11,16 @@ public class MessageConfiguration
 {
   [TextArea]
   [Display(Name = "Message Text",
-    Description = "The text to send as the webhook message. N.B. You probably only want to set the Embed Text")]
+    Description = """
+                  The text to send as the webhook message.
+                  Unless you want extra bulk in Discord messages, leave this blank.
+                  """)]
+  [Visibility(Size = DisplayElementSize.Small)]
   public string? MessageText { get; set; }
 
   [TextArea]
   [Display(Name = "Embed Text", Description = "The text to send in the webhook's embed")]
+  [Visibility(Size = DisplayElementSize.Large)]
   [DefaultValue("")]
   public required string EmbedText { get; set; } = string.Empty;
 
