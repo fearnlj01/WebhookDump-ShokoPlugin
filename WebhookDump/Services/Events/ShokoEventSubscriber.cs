@@ -55,8 +55,8 @@ public partial class ShokoEventSubscriber : IDisposable
     _metadataService.EpisodeAdded += OnEpisodeAdded;
   }
 
-  private WebhookConfiguration WebhookConfiguration => _pluginConfigurationProvider.Load().Webhook;
-  private AutomaticMatchConfiguration AutoMatchConfiguration => _pluginConfigurationProvider.Load().AutomaticMatch;
+  private bool WebhookEnabled => _pluginConfigurationProvider.Load().Webhook.Enabled;
+  private AutomaticMatchConfiguration AutoMatchConfiguration => _pluginConfigurationProvider.Load().AutomaticMatching;
 
   public void Dispose()
   {
@@ -109,7 +109,7 @@ public partial class ShokoEventSubscriber : IDisposable
   private void OnAvdumpEvent(object? sender, AvdumpEventArgs args)
   {
     if (args.Type is not AVDumpEventType.Success || args.VideoIDs is not { Count: > 0 } ||
-        !WebhookConfiguration.Enabled) return;
+        !WebhookEnabled) return;
     _ = HandleAvDumpEvent(args);
   }
 
@@ -135,7 +135,7 @@ public partial class ShokoEventSubscriber : IDisposable
 
     if (attempts == 1)
     {
-      await _cachedData.SaveTrackedFilesAsync(args.Video.ID).ConfigureAwait(false);
+      await _cachedData.SaveTrackedFileAsync(args.Video.ID).ConfigureAwait(false);
       await _shokoService.DumpFile(args.Video).ConfigureAwait(false);
     }
 
@@ -147,6 +147,7 @@ public partial class ShokoEventSubscriber : IDisposable
     var cts = _cancellationTokens.GetOrAdd(args.Video.ID, _ => new CancellationTokenSource());
     try
     {
+      // Subtract 30 seconds to try and preempt the UDP socket logging out
       var waitTime = TimeSpan.FromMinutes(5) * Math.Pow(2, attempts - 1) - TimeSpan.FromSeconds(30);
       await Task.Delay(waitTime, cts.Token).ConfigureAwait(false);
     }

@@ -5,11 +5,11 @@ using Shoko.Abstractions.Config.Enums;
 
 namespace Shoko.Plugin.WebhookDump.Configurations;
 
-[Display(Name = "Automatic Matching")]
-[Section(DisplaySectionType.Tab)]
+[Display(Name = "Automatic Matching", Description = " ")]
+[Section(DisplaySectionType.Minimal, ShowSaveAction = true)]
 public class AutomaticMatchConfiguration
 {
-  [Display(Name = "Enabled", Description = "Controls if the plugin attempt to automatically match files that it dumps")]
+  [Display(Name = "Enabled", Description = "If enabled, attempt to automatically match files")]
   [DefaultValue(true)]
   public bool Enabled { get; set; } = true;
 
@@ -19,19 +19,12 @@ public class AutomaticMatchConfiguration
   public int MaxAttempts { get; set; } = 8;
 
   [Display(Name = "Watch reactions for rescan",
-    Description = """
-                  Controls if the plugin attempts to 'watch' messages it sends for reactions.
-
-                  If a reaction is detected, the plugin will attempt to rescan the file **indefinitely** until it is matched.
-
-                  N.B. This requires Webhook Messages to be enabled.
-                  """)]
+    Description =
+      """
+      If this **and** the Discord Webhook feature are both enabled, the plugin will check all the messages that it sends
+      every fifteen minutes to see if they have any reactions. If a reaction is found, the plugin will attempt to rescan
+      the corresponding file **indefinitely** until the file is matched, or the message is deleted on Discord.
+      """)]
   [DefaultValue(false)]
   public bool WatchReactions { get; set; }
-
-  public override string ToString()
-  {
-    return
-      $"Automatic Matching Configuration: Enabled={Enabled}, MaxAttempts={MaxAttempts}, WatchReactions={WatchReactions}";
-  }
 }

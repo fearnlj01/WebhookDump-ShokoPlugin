@@ -14,7 +14,7 @@ public class ReactionWatchService(
   IServiceScopeFactory scopeFactory
 ) : BackgroundService
 {
-  private bool AttemptAutoMatch => pluginConfigurationProvider.Load().AutomaticMatch is
+  private bool AttemptAutoMatch => pluginConfigurationProvider.Load().AutomaticMatching is
     { WatchReactions: true, Enabled: true };
 
   private static TimeSpan Interval => TimeSpan.FromMinutes(15);

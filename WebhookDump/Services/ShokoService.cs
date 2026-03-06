@@ -21,7 +21,8 @@ public partial class ShokoService(
   ILogger<ShokoService> logger
 )
 {
-  private RestrictionConfiguration RestrictionSettings => pluginConfigurationProvider.Load().Webhook.Restrictions;
+  private RestrictionConfiguration RestrictionSettings =>
+    pluginConfigurationProvider.Load().Webhook.Restrictions;
 
   public Task InitializeAsync()
   {
