@@ -10,10 +10,10 @@ public class CachedDataProxy : ICachedDataProxy
   private readonly TaskCompletionSource<ICachedData> _proxyTaskCompletionSource =
     new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-  public async Task SaveMessageStateAsync(int videoId, MinimalMessageState state)
+  public async Task SaveMessageStateAsync(int videoId, MinimalMessageState messageState)
   {
     await (await GetDatabaseAsync().ConfigureAwait(false))
-      .SaveMessageStateAsync(videoId, state).ConfigureAwait(false);
+      .SaveMessageStateAsync(videoId, messageState).ConfigureAwait(false);
   }
 
   public async Task<MinimalMessageState?> GetMessageStateAsync(int videoId)
@@ -28,16 +28,16 @@ public class CachedDataProxy : ICachedDataProxy
       .GetAllMessagesAsync().ConfigureAwait(false);
   }
 
-  public async Task DeleteMessageStateAsync(int videoId)
+  public async Task DeleteEntryAsync(int videoId)
   {
     await (await GetDatabaseAsync().ConfigureAwait(false))
-      .DeleteMessageStateAsync(videoId).ConfigureAwait(false);
+      .DeleteEntryAsync(videoId).ConfigureAwait(false);
   }
 
-  public async Task SaveTrackedFilesAsync(int fileId)
+  public async Task SaveTrackedFileAsync(int fileId)
   {
     await (await GetDatabaseAsync().ConfigureAwait(false))
-      .SaveTrackedFilesAsync(fileId).ConfigureAwait(false);
+      .SaveTrackedFileAsync(fileId).ConfigureAwait(false);
   }
 
   public async Task<bool> IsFileTrackedAsync(int fileId)
@@ -50,12 +50,6 @@ public class CachedDataProxy : ICachedDataProxy
   {
     return await (await GetDatabaseAsync().ConfigureAwait(false))
       .GetTrackedFileIdsAsync(fileIds).ConfigureAwait(false);
-  }
-
-  public async Task DeleteTrackedFilesAsync(int fileId)
-  {
-    await (await GetDatabaseAsync().ConfigureAwait(false))
-      .DeleteTrackedFilesAsync(fileId).ConfigureAwait(false);
   }
 
   public async Task CleanupOldEntriesAsync(TimeSpan retentionPeriod)

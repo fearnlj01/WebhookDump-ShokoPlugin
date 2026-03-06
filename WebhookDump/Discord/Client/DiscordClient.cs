@@ -16,7 +16,8 @@ public partial class DiscordClient
   private static readonly JsonSerializerOptions SerializerOptions = new()
   {
     PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    NumberHandling = JsonNumberHandling.AllowReadingFromString
   };
 
   private readonly HttpClient _httpClient;
@@ -55,7 +56,7 @@ public partial class DiscordClient
     return null;
   }
 
-  private async Task PatchWebhook(string messageId, Message webhook)
+  private async Task PatchWebhook(ulong messageId, Message webhook)
   {
     var uri = new Uri($"messages/{messageId}", UriKind.Relative);
 
@@ -70,7 +71,7 @@ public partial class DiscordClient
     }
   }
 
-  public async Task PatchWebhook(string messageId, Message webhook, Stream? imageStream)
+  public async Task PatchWebhook(ulong messageId, Message webhook, Stream? imageStream)
   {
     if (imageStream is null)
     {
@@ -102,7 +103,7 @@ public partial class DiscordClient
     }
   }
 
-  public async Task<MinimalMessageState?> GetWebhookMessageState(string messageId)
+  public async Task<MinimalMessageState?> GetWebhookMessageState(ulong messageId)
   {
     var uri = new Uri($"messages/{messageId}", UriKind.Relative);
     // TODO: Take advantage of the Shoko connectivity checks to determine if we are connected to the internet
@@ -127,8 +128,8 @@ public partial class DiscordClient
   partial void LogAnExceptionOccuredInTheWebhookdumpPlugin();
 
   [LoggerMessage(LogLevel.Error, "Exception thrown when patching a previous webhook message (MessageId={id})")]
-  partial void LogExceptionThrownWhenPatchingAPreviousWebhookMessageMessageidId(string id);
+  partial void LogExceptionThrownWhenPatchingAPreviousWebhookMessageMessageidId(ulong id);
 
   [LoggerMessage(LogLevel.Error, "Unable to retreive discord message status (MessageId={id})")]
-  partial void LogUnableToRetreiveDiscordMessageStatusMessageidId(string id);
+  partial void LogUnableToRetreiveDiscordMessageStatusMessageidId(ulong id);
 }

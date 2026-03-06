@@ -218,8 +218,7 @@ public partial class ShokoEventSubscriber : IDisposable
 
   private async Task HandleVideoFileDeleted(FileEventArgs args)
   {
-    await _cachedData.DeleteMessageStateAsync(args.Video.ID).ConfigureAwait(false);
-    await _cachedData.DeleteTrackedFilesAsync(args.Video.ID).ConfigureAwait(false);
+    await _cachedData.DeleteEntryAsync(args.Video.ID).ConfigureAwait(false);
   }
 
   #endregion HandleEvent

@@ -4,15 +4,14 @@ namespace Shoko.Plugin.WebhookDump.Persistence;
 
 public interface ICachedData
 {
-  Task SaveMessageStateAsync(int videoId, MinimalMessageState state);
+  Task SaveMessageStateAsync(int videoId, MinimalMessageState messageState);
   Task<MinimalMessageState?> GetMessageStateAsync(int videoId);
   Task<IReadOnlyList<(int videoId, MinimalMessageState messageState)>> GetAllMessagesAsync();
-  Task DeleteMessageStateAsync(int videoId);
+  Task DeleteEntryAsync(int videoId);
 
-  Task SaveTrackedFilesAsync(int fileId);
+  Task SaveTrackedFileAsync(int fileId);
   Task<bool> IsFileTrackedAsync(int fileId);
   Task<IReadOnlySet<int>> GetTrackedFileIdsAsync(IEnumerable<int> fileIds);
-  Task DeleteTrackedFilesAsync(int fileId);
 
   Task CleanupOldEntriesAsync(TimeSpan retentionPeriod);
 }

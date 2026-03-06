@@ -54,14 +54,12 @@ public partial class DiscordService(
   private async Task PatchMatchedWebhook(MinimalMessageState messageState, IVideo video, IEpisode episode,
     ISeries series)
   {
-    await cachedData.DeleteMessageStateAsync(video.ID).ConfigureAwait(false);
-    await cachedData.DeleteTrackedFilesAsync(video.ID).ConfigureAwait(false);
-
     var posterStream = series.DefaultPoster?.GetStream();
 
     var message = CreateMatchedWebhook(video, episode, series, posterStream != null);
 
     await discord.PatchWebhook(messageState.Id, message, posterStream).ConfigureAwait(false);
+    await cachedData.DeleteEntryAsync(video.ID).ConfigureAwait(false);
   }
 
   private async Task SendUnmatchedWebhook(IVideo video)

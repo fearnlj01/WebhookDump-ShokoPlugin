@@ -1,5 +1,5 @@
-﻿using System.Text;
-using System.Text.Json;
+﻿using System.Globalization;
+using System.Text;
 using Microsoft.Data.Sqlite;
 using Shoko.Plugin.WebhookDump.Discord.Models;
 
@@ -20,22 +20,60 @@ public class CachedData : ICachedData
     InitializeDatabase();
   }
 
-  public async Task SaveMessageStateAsync(int videoId, MinimalMessageState state)
+  public async Task SaveMessageStateAsync(int videoId, MinimalMessageState messageState)
   {
+    ArgumentOutOfRangeException.ThrowIfNegativeOrZero(videoId);
+
     await using var connection = new SqliteConnection(_connectionString);
     await connection.OpenAsync().ConfigureAwait(false);
 
     await using var command = connection.CreateCommand();
     command.CommandText =
       """
-      INSERT OR REPLACE INTO Messages (VideoId, JsonData, Timestamp)
-      VALUES ($videoId, $jsonData, $timestamp)
+      INSERT INTO WebhookDumpEntries (VideoFileId, DiscordMessageId, InsertionTimestamp)
+      VALUES ($videoId, $discordMessageId, $timestamp)
+      ON CONFLICT(VideoFileId) DO UPDATE SET
+        DiscordMessageId = excluded.DiscordMessageId;
       """;
     command.Parameters.AddWithValue("$videoId", videoId);
-    command.Parameters.AddWithValue("$jsonData", JsonSerializer.Serialize(state));
-    command.Parameters.AddWithValue("$timestamp", state.EarliestKnownDate.ToString("O"));
+    command.Parameters.AddWithValue("$discordMessageId", messageState.Id);
+    command.Parameters.AddWithValue("$timestamp", messageState.EarliestKnownDate.ToString("O"));
 
     await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+  }
+
+  public async Task<MinimalMessageState?> GetMessageStateAsync(int videoId)
+  {
+    ArgumentOutOfRangeException.ThrowIfNegativeOrZero(videoId);
+
+    await using var connection = new SqliteConnection(_connectionString);
+    await connection.OpenAsync().ConfigureAwait(false);
+
+    await using var command = connection.CreateCommand();
+    command.CommandText =
+      "SELECT DiscordMessageId, InsertionTimestamp FROM WebhookDumpEntries WHERE VideoFileId = $videoId;";
+    command.Parameters.AddWithValue("$videoId", videoId);
+
+    await using var reader = await command.ExecuteReaderAsync().ConfigureAwait(false);
+    if (!await reader.ReadAsync().ConfigureAwait(false)) return null;
+    if (reader.IsDBNull(0)) return null;
+
+    var messageIdSigned = reader.GetInt64(0);
+    if (messageIdSigned <= 0) return null;
+
+    var insertionTimestampRaw = reader.GetString(1);
+    var insertionTimestamp =
+      DateTimeOffset.TryParse(insertionTimestampRaw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind,
+        out var timestamp)
+        ? timestamp
+        : DateTimeOffset.UtcNow;
+
+    return new MinimalMessageState
+    {
+      Id = (ulong)messageIdSigned,
+      EarliestKnownDate = insertionTimestamp,
+      Reactions = []
+    };
   }
 
   public async Task<IReadOnlyList<(int videoId, MinimalMessageState messageState)>> GetAllMessagesAsync()
@@ -44,7 +82,12 @@ public class CachedData : ICachedData
     await connection.OpenAsync().ConfigureAwait(false);
 
     await using var command = connection.CreateCommand();
-    command.CommandText = "SELECT VideoId, JsonData FROM Messages";
+    command.CommandText =
+      """
+      SELECT VideoFileId, DiscordMessageId, InsertionTimestamp
+      FROM WebhookDumpEntries
+      WHERE DiscordMessageId IS NOT NULL;
+      """;
 
     var messages = new List<(int, MinimalMessageState)>();
 
@@ -52,45 +95,31 @@ public class CachedData : ICachedData
     while (await reader.ReadAsync().ConfigureAwait(false))
     {
       var videoId = reader.GetInt32(0);
-      var jsonData = reader.GetString(1);
-      var messageState = JsonSerializer.Deserialize<MinimalMessageState>(jsonData);
-      if (messageState is not null) messages.Add((videoId, messageState));
+
+      var messageIdSigned = reader.GetInt64(1);
+      if (messageIdSigned <= 0) continue;
+
+      var insertionTimestampRaw = reader.GetString(2);
+      var insertionTimestamp =
+        DateTimeOffset.TryParse(insertionTimestampRaw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind,
+          out var timestamp)
+          ? timestamp
+          : DateTimeOffset.UtcNow;
+
+      messages.Add((videoId, new MinimalMessageState
+      {
+        Id = (ulong)messageIdSigned,
+        EarliestKnownDate = insertionTimestamp,
+        Reactions = []
+      }));
     }
 
     return messages;
   }
 
-  public async Task<MinimalMessageState?> GetMessageStateAsync(int videoId)
+  public async Task SaveTrackedFileAsync(int fileId)
   {
-    await using var connection = new SqliteConnection(_connectionString);
-    await connection.OpenAsync().ConfigureAwait(false);
-
-    await using var command = connection.CreateCommand();
-    command.CommandText = "SELECT JsonData FROM Messages WHERE VideoId = $videoId";
-    command.Parameters.AddWithValue("$videoId", videoId);
-
-    await using var reader = await command.ExecuteReaderAsync().ConfigureAwait(false);
-    if (!await reader.ReadAsync().ConfigureAwait(false)) return null;
-
-    var jsonData = reader.GetString(0);
-    return JsonSerializer.Deserialize<MinimalMessageState>(jsonData);
-  }
-
-  public async Task DeleteMessageStateAsync(int videoId)
-  {
-    await using var connection = new SqliteConnection(_connectionString);
-    await connection.OpenAsync().ConfigureAwait(false);
-
-    await using var command = connection.CreateCommand();
-    command.CommandText = "DELETE FROM Messages WHERE VideoId = $videoId";
-    command.Parameters.AddWithValue("$videoId", videoId);
-
-    await command.ExecuteNonQueryAsync().ConfigureAwait(false);
-  }
-
-  public async Task CleanupOldEntriesAsync(TimeSpan retentionPeriod)
-  {
-    var cutoff = DateTimeOffset.UtcNow.Subtract(retentionPeriod).ToString("O");
+    ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fileId);
 
     await using var connection = new SqliteConnection(_connectionString);
     await connection.OpenAsync().ConfigureAwait(false);
@@ -98,24 +127,8 @@ public class CachedData : ICachedData
     await using var command = connection.CreateCommand();
     command.CommandText =
       """
-      DELETE FROM Messages WHERE Timestamp < $cutoff;
-      DELETE FROM TrackedFiles WHERE Timestamp < $cutoff;
-      """;
-    command.Parameters.AddWithValue("$cutoff", cutoff);
-
-    await command.ExecuteNonQueryAsync().ConfigureAwait(false);
-  }
-
-  public async Task SaveTrackedFilesAsync(int fileId)
-  {
-    await using var connection = new SqliteConnection(_connectionString);
-    await connection.OpenAsync().ConfigureAwait(false);
-
-    await using var command = connection.CreateCommand();
-    command.CommandText =
-      """
-      INSERT OR REPLACE INTO TrackedFiles (FileId, Timestamp)
-      VALUES ($fileId, $timestamp)
+      INSERT OR IGNORE INTO WebhookDumpEntries (VideoFileId, DiscordMessageId, InsertionTimestamp)
+      VALUES ($fileId, NULL, $timestamp)
       """;
     command.Parameters.AddWithValue("$fileId", fileId);
     command.Parameters.AddWithValue("$timestamp", DateTimeOffset.UtcNow.ToString("O"));
@@ -125,11 +138,13 @@ public class CachedData : ICachedData
 
   public async Task<bool> IsFileTrackedAsync(int fileId)
   {
+    ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fileId);
+
     await using var connection = new SqliteConnection(_connectionString);
     await connection.OpenAsync().ConfigureAwait(false);
 
     await using var command = connection.CreateCommand();
-    command.CommandText = "SELECT EXISTS(SELECT 1 FROM TrackedFiles WHERE FileId = $fileId)";
+    command.CommandText = "SELECT EXISTS(SELECT 1 FROM WebhookDumpEntries WHERE VideoFileId = $fileId)";
     command.Parameters.AddWithValue("$fileId", fileId);
 
     var result = (long?)await command.ExecuteScalarAsync().ConfigureAwait(false);
@@ -139,11 +154,9 @@ public class CachedData : ICachedData
   public async Task<IReadOnlySet<int>> GetTrackedFileIdsAsync(IEnumerable<int> fileIds)
   {
     var ids = fileIds.Where(id => id > 0).Distinct().ToArray();
-
     if (ids.Length == 0) return new HashSet<int>();
 
     const int chunkSize = 500;
-
     var trackedIds = new HashSet<int>();
 
     await using var connection = new SqliteConnection(_connectionString);
@@ -156,7 +169,7 @@ public class CachedData : ICachedData
       await using var command = connection.CreateCommand();
 
       var sb = new StringBuilder();
-      sb.Append("SELECT FileId FROM TrackedFiles WHERE FileId IN (");
+      sb.Append("SELECT VideoFileId FROM WebhookDumpEntries WHERE VideoFileId IN (");
 
       for (var i = 0; i < chunk.Length; i++)
       {
@@ -176,14 +189,28 @@ public class CachedData : ICachedData
     return trackedIds;
   }
 
-  public async Task DeleteTrackedFilesAsync(int fileId)
+  public async Task DeleteEntryAsync(int videoId)
   {
     await using var connection = new SqliteConnection(_connectionString);
     await connection.OpenAsync().ConfigureAwait(false);
 
     await using var command = connection.CreateCommand();
-    command.CommandText = "DELETE FROM TrackedFiles WHERE FileId = $fileId";
-    command.Parameters.AddWithValue("$fileId", fileId);
+    command.CommandText = "DELETE FROM WebhookDumpEntries WHERE VideoFileId = $videoId";
+    command.Parameters.AddWithValue("$videoId", videoId);
+
+    await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+  }
+
+  public async Task CleanupOldEntriesAsync(TimeSpan retentionPeriod)
+  {
+    var cutoff = DateTimeOffset.UtcNow.Subtract(retentionPeriod).ToString("O");
+
+    await using var connection = new SqliteConnection(_connectionString);
+    await connection.OpenAsync().ConfigureAwait(false);
+
+    await using var command = connection.CreateCommand();
+    command.CommandText = "DELETE FROM WebhookDumpEntries WHERE InsertionTimestamp < $cutoff;";
+    command.Parameters.AddWithValue("$cutoff", cutoff);
 
     await command.ExecuteNonQueryAsync().ConfigureAwait(false);
   }
@@ -202,19 +229,13 @@ public class CachedData : ICachedData
     using var command = connection.CreateCommand();
     command.CommandText =
       """
-      CREATE TABLE IF NOT EXISTS Messages (
-          VideoId INTEGER PRIMARY KEY,
-          JsonData TEXT NOT NULL,
-          Timestamp TEXT NOT NULL
+      CREATE TABLE IF NOT EXISTS WebhookDumpEntries (
+        VideoFileId INTEGER PRIMARY KEY,
+        DiscordMessageId INTEGER NULL,
+        InsertionTimestamp TEXT NOT NULL
       );
 
-      CREATE TABLE IF NOT EXISTS TrackedFiles (
-          FileId INTEGER PRIMARY KEY,
-          Timestamp TEXT NOT NULL
-      );
-
-      CREATE INDEX IF NOT EXISTS IX_Messages_Timestamp ON Messages(Timestamp);
-      CREATE INDEX IF NOT EXISTS IX_TrackedFiles_Timestamp ON TrackedFiles(Timestamp);
+      CREATE INDEX IF NOT EXISTS IX_WebhookDumpEntries_InsertionTimestamp ON WebhookDumpEntries(InsertionTimestamp);
       """;
     command.ExecuteNonQuery();
   }
