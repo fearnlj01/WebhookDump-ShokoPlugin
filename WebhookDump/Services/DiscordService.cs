@@ -89,7 +89,8 @@ public partial class DiscordService(
     }
 
     var crc = video.Crc32;
-    if (!string.IsNullOrEmpty(crc) && (!video.EarliestKnownName?.Contains(crc) ?? true))
+    if (!video.HasCrc32InFilename)
+    {
       embedBuilder.SetColor(CrcMismatchColor);
       LogCrcMismatch(logger, video.ID, crc, video.EarliestKnownName);
     }
@@ -161,8 +162,8 @@ public partial class DiscordService(
     var sb = new StringBuilder();
 
     sb.Append("File ID: ").Append(video.ID)
-      .Append(" | ").Append("CRC: ").Append(crc);
-    if (!crcMatch)
+      .Append(" | ").Append("CRC: ").Append(video.Crc32);
+    if (!video.HasCrc32InFilename)
       sb.Append(" | ").Append("CRC not found in filename");
 
     return new Footer { Text = sb.ToString() };

@@ -65,7 +65,7 @@ public partial class ReactionWatchService(
 
       var matchAttempts = shokoService.GetVideoAnidbMatchAttemptCount(video);
       if (matchAttempts <= MaxReactionScanAttempts)
-        await shokoService.RescanFile(video).ConfigureAwait(false);
+        await shokoService.RescanFile(video, matchAttempts).ConfigureAwait(false);
     }
 
     LogMessageCheckFinished(logger);

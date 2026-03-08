@@ -7,7 +7,7 @@ namespace Shoko.Plugin.WebhookDump.Persistence;
  */
 public class CachedDataProxy : ICachedDataProxy
 {
-  private readonly TaskCompletionSource<ICachedData> _proxyTaskCompletionSource =
+  private readonly TaskCompletionSource<ICachedData> _proxyTcs =
     new(TaskCreationOptions.RunContinuationsAsynchronously);
 
   public async Task SaveMessageStateAsync(int videoId, MinimalMessageState messageState)
@@ -66,16 +66,16 @@ public class CachedDataProxy : ICachedDataProxy
 
   public bool TrySetDatabase(ICachedData inner)
   {
-    return _proxyTaskCompletionSource.TrySetResult(inner);
+    return _proxyTcs.TrySetResult(inner);
   }
 
   public bool TrySetException(Exception ex)
   {
-    return _proxyTaskCompletionSource.TrySetException(ex);
+    return _proxyTcs.TrySetException(ex);
   }
 
   private Task<ICachedData> GetDatabaseAsync()
   {
-    return _proxyTaskCompletionSource.Task;
+    return _proxyTcs.Task;
   }
 }

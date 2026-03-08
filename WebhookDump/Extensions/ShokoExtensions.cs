@@ -12,6 +12,8 @@ public static class ShokoExtensions
   {
     public string? Crc32 => video.Hashes.FirstOrDefault(hd => hd.Type == "CRC32")?.Value;
 
+    public bool HasCrc32InFilename => video.EarliestKnownName?.Contains(video.Crc32 ?? string.Empty) ?? false;
+
     public string MarkdownSanitizedEd2K =>
       $"ed2k://|file|{video.EarliestKnownName.EscapeMarkdownPairs()}|{video.Size}|{video.ED2K}|/";
   }
