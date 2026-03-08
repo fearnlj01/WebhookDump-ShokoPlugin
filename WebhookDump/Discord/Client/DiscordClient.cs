@@ -62,7 +62,7 @@ public partial class DiscordClient
 
     try
     {
-      var response = await _httpClient.PatchAsJsonAsync(uri, webhook, SerializerOptions).ConfigureAwait(false);
+      _ = await _httpClient.PatchAsJsonAsync(uri, webhook, SerializerOptions).ConfigureAwait(false);
     }
     catch
     {
