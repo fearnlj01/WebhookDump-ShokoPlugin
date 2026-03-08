@@ -4,6 +4,8 @@ using NLog;
 using NLog.Config;
 using NLog.Targets;
 using Shoko.Abstractions.Config;
+using Shoko.Abstractions.Core;
+using Shoko.Abstractions.Core.Events;
 using Shoko.Abstractions.Plugin;
 using Shoko.Abstractions.Utilities;
 using Shoko.Plugin.WebhookDump.Configurations;
@@ -16,7 +18,7 @@ namespace Shoko.Plugin.WebhookDump.Services;
 
 public partial class PluginStartupService(
   IApplicationPaths applicationPaths,
-  IShokoEventHandler shokoEventHandler,
+  ISystemService systemService,
   ICachedDataProxy cachedDataProxy,
   ConfigurationProvider<PluginConfiguration> pluginConfigurationProvider,
   ILogger<PluginStartupService> logger,
@@ -34,7 +36,7 @@ public partial class PluginStartupService(
   public Task StartAsync(CancellationToken cancellationToken)
   {
     LogPluginWaitingForStart(logger);
-    shokoEventHandler.Started += OnServerStarted;
+    systemService.AboutToStart += OnServerAboutToStart;
     return Task.CompletedTask;
   }
 
@@ -43,10 +45,10 @@ public partial class PluginStartupService(
     return Task.CompletedTask;
   }
 
-  private void OnServerStarted(object? sender, EventArgs e)
+  private void OnServerAboutToStart(object? sender, ServerAboutToStartEventArgs e)
   {
     if (Interlocked.Exchange(ref _init, 1) == 1) return;
-    shokoEventHandler.Started -= OnServerStarted;
+    systemService.AboutToStart -= OnServerAboutToStart;
 
     InitDatabase();
     SuppressHttpClientLoggingNLog();
@@ -132,7 +134,7 @@ public partial class PluginStartupService(
 
   #region LoggerMessages
 
-  [LoggerMessage(LogLevel.Information, "Plugin startup service started. Waiting for ServerStarted event.")]
+  [LoggerMessage(LogLevel.Information, "Plugin startup service started. Waiting for AboutToStart event.")]
   static partial void LogPluginWaitingForStart(ILogger<PluginStartupService> logger);
 
   [LoggerMessage(LogLevel.Error, "Unable to correctly init the {pluginName} plugin!")]

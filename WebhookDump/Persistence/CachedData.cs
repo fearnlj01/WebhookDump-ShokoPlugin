@@ -22,6 +22,7 @@ public partial class CachedData : ICachedData
     }.ToString();
 
     InitializeDatabase();
+    LogDatabaseReady(_logger);
   }
 
   public async Task SaveMessageStateAsync(int videoId, MinimalMessageState messageState)
@@ -348,8 +349,11 @@ public partial class CachedData : ICachedData
   [LoggerMessage(LogLevel.Error, "Failed to delete entries for videos")]
   static partial void LogFailedToDeleteEntries(ILogger<CachedData> logger, Exception ex);
 
-  [LoggerMessage(LogLevel.Information, "Plugin database initialized successfully.")]
+  [LoggerMessage(LogLevel.Information, "Plugin database initialized successfully")]
   static partial void LogDatabaseInit(ILogger<CachedData> logger);
+
+  [LoggerMessage(LogLevel.Information, "Plugin database ready")]
+  static partial void LogDatabaseReady(ILogger<CachedData> logger);
 
   #endregion
 }
