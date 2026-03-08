@@ -134,7 +134,7 @@ public partial class DiscordService(
   private Message.Builder GetBaseMessage(FileEventReason reason)
   {
     return Message.Create()
-      .SetUsername(WebhookConfiguration.Username)
+      .SetUsername(WebhookConfiguration.Name)
       .SetAvatarUrl(WebhookConfiguration.AvatarUrl)
       .SetContent(reason is FileEventReason.Matched
         ? WebhookConfiguration.Matched.MessageText

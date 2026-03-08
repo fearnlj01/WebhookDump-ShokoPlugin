@@ -30,8 +30,8 @@ public class WebhookConfiguration
 
   [Visibility(Size = DisplayElementSize.Full)]
   [DefaultValue("Shoko")]
-  [Display(Name = "Username", Description = "The username to use for the webhook")]
-  public string Username { get; set; } = "Shoko";
+  [Display(Name = "Name", Description = "The username to use for the webhook")]
+  public string Name { get; set; } = "Shoko";
 
   [Url]
   [Visibility(Size = DisplayElementSize.Full)]
