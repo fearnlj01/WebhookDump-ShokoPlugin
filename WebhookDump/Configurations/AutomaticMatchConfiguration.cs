@@ -18,6 +18,11 @@ public class AutomaticMatchConfiguration
   [DefaultValue(8)]
   public int MaxAttempts { get; set; } = 8;
 
+  [Display(Name = "Max file rescan attempts (Reaction Watcher)",
+    Description = "The maximum number of times a file can be automatically rescanned when watching for reactions")]
+  [DefaultValue(32)] // Allows at most 8 hours of rescan attempts following the initial message being sent.
+  public int MaxReactionScanAttempts { get; set; } = 32;
+
   [Display(Name = "Watch reactions for rescan",
     Description =
       """

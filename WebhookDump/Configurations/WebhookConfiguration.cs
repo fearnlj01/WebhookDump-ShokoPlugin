@@ -44,15 +44,17 @@ public class WebhookConfiguration
   public MessageConfiguration Matched { get; set; } = new()
   {
     EmbedColor = "#57F287",
-    EmbedText = "An unmatched file automatically dumped by this plugin has now been matched."
+    EmbedText = "An unmatched file tracked by this plugin has now been matched."
   };
 
   [Display(Name = "Unmatched", Description = "The settings for unmatched file messages")]
   public MessageConfiguration Unmatched { get; set; } = new()
   {
     EmbedColor = "#3B82F6",
-    EmbedText =
-      "The above file has been found by Shoko Server but could not be matched against AniDB. The file has now been dumped with AVDump, result as below."
+    EmbedText = """
+                  The above file has been found by Shoko Server but could not be matched against AniDB.
+                  If the file is eligible to be added to AniDB, this can be added using the below.
+                """
   };
 
   [Display(Name = "Restrictions",
