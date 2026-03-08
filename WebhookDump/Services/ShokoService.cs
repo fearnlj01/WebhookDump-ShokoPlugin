@@ -41,7 +41,7 @@ public partial class ShokoService(
 
   public async Task DumpFile(IVideo video)
   {
-    await anidbService.AvdumpVideos(video).ConfigureAwait(false);
+    await anidbService.ScheduleAvdumpVideos(video).ConfigureAwait(false);
   }
 
   public async Task RescanFile(IVideo video, int matchAttempts = 1)
