@@ -9,7 +9,8 @@ using Shoko.Abstractions.Utilities;
 using Shoko.Plugin.WebhookDump.Configurations;
 using Shoko.Plugin.WebhookDump.Persistence;
 using Shoko.Plugin.WebhookDump.Services.Events;
-using LogLevel = NLog.LogLevel;
+using LogLevel = Microsoft.Extensions.Logging.LogLevel;
+using NLogLevel = NLog.LogLevel;
 
 namespace Shoko.Plugin.WebhookDump.Services;
 
@@ -19,6 +20,7 @@ public partial class PluginStartupService(
   ICachedDataProxy cachedDataProxy,
   ConfigurationProvider<PluginConfiguration> pluginConfigurationProvider,
   ILogger<PluginStartupService> logger,
+  ILogger<CachedData> cachedDataLogger,
   ShokoEventSubscriber shokoEventSubscriber,
   ShokoService shokoService
 ) : IHostedService
@@ -31,6 +33,7 @@ public partial class PluginStartupService(
 
   public Task StartAsync(CancellationToken cancellationToken)
   {
+    LogPluginWaitingForStart(logger);
     shokoEventHandler.Started += OnServerStarted;
     return Task.CompletedTask;
   }
@@ -46,8 +49,13 @@ public partial class PluginStartupService(
     shokoEventHandler.Started -= OnServerStarted;
 
     InitDatabase();
-    _ = shokoService.InitializeAsync();
     SuppressHttpClientLoggingNLog();
+
+    shokoService.InitializeAsync().ContinueWith(
+      task => LogUnableToInitException(logger, typeof(Plugin).FullName!, task.Exception?.Message),
+      TaskContinuationOptions.OnlyOnFaulted);
+
+    LogStartupComplete(logger);
   }
 
   private void InitDatabase()
@@ -67,11 +75,11 @@ public partial class PluginStartupService(
         ? defaultDbPath
         : Path.IsPathRooted(configuredPath)
           ? configuredPath
-          : Path.Combine(pluginConfigDirectory, configuredPath); // Prevents bad user behaviour making the app sad
+          : Path.Combine(pluginConfigDirectory, configuredPath); // Prevents bad user behaviour making the plugin sad
 
       Directory.CreateDirectory(Path.GetDirectoryName(dbPath) ?? defaultDbPath);
 
-      if (!cachedDataProxy.TrySetDatabase(new CachedData(dbPath)))
+      if (!cachedDataProxy.TrySetDatabase(new CachedData(dbPath, cachedDataLogger)))
         LogReinitAttempt(logger, PluginNamespace);
     }
     catch (Exception ex)
@@ -108,7 +116,7 @@ public partial class PluginStartupService(
 
       foreach (var pattern in patterns)
       {
-        var rule = new LoggingRule(pattern, LogLevel.Trace, LogLevel.Warn, nullTarget) { Final = true };
+        var rule = new LoggingRule(pattern, NLogLevel.Trace, NLogLevel.Warn, nullTarget) { Final = true };
         config.LoggingRules.Insert(0, rule);
       }
 
@@ -118,14 +126,28 @@ public partial class PluginStartupService(
     }
     catch
     {
-      // It's only a logging error...
+      // Logging suppression is "best effort" only.
     }
   }
 
-  [LoggerMessage(Microsoft.Extensions.Logging.LogLevel.Error, "Unable to correctly init the {pluginName} plugin!")]
+  #region LoggerMessages
+
+  [LoggerMessage(LogLevel.Information, "Plugin startup service started. Waiting for ServerStarted event.")]
+  static partial void LogPluginWaitingForStart(ILogger<PluginStartupService> logger);
+
+  [LoggerMessage(LogLevel.Error, "Unable to correctly init the {pluginName} plugin!")]
   static partial void LogUnableToInit(ILogger<PluginStartupService> logger, string pluginName);
 
-  [LoggerMessage(Microsoft.Extensions.Logging.LogLevel.Warning,
+  [LoggerMessage(LogLevel.Error, "Unable to correctly init the {pluginName} plugin! Exception: {ExceptionMessage}")]
+  static partial void LogUnableToInitException(ILogger<PluginStartupService> logger, string pluginName,
+    string? exceptionMessage);
+
+  [LoggerMessage(LogLevel.Warning,
     "The {pluginName} plugin has already initialized its database, ignoring re-init request.")]
   static partial void LogReinitAttempt(ILogger<PluginStartupService> logger, string pluginName);
+
+  [LoggerMessage(LogLevel.Trace, "Plugin startup complete")]
+  static partial void LogStartupComplete(ILogger<PluginStartupService> logger);
+
+  #endregion
 }

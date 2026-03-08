@@ -1,16 +1,20 @@
-﻿using Microsoft.Data.Sqlite;
+﻿using System.Data.Common;
+using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 using Shoko.Plugin.WebhookDump.Discord.Models;
 using Shoko.Plugin.WebhookDump.Extensions;
 
 namespace Shoko.Plugin.WebhookDump.Persistence;
 
-public class CachedData : ICachedData
+public partial class CachedData : ICachedData
 {
   private const int MaxChunkSize = 500;
   private readonly string _connectionString;
+  private readonly ILogger<CachedData> _logger;
 
-  public CachedData(string dbPath)
+  public CachedData(string dbPath, ILogger<CachedData> logger)
   {
+    _logger = logger;
     _connectionString = new SqliteConnectionStringBuilder
     {
       DataSource = dbPath,
@@ -39,7 +43,15 @@ public class CachedData : ICachedData
     command.Parameters.AddWithValue("$discordMessageId", messageState.Id);
     command.Parameters.AddWithValue("$timestamp", messageState.EarliestKnownDate.ToString("O"));
 
-    await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    try
+    {
+      if (await command.ExecuteNonQueryAsync().ConfigureAwait(false) > 0)
+        LogUpdatedMessageState(_logger, videoId, messageState.Id);
+    }
+    catch (DbException ex)
+    {
+      LogFailedToUpdatedMessageState(_logger, ex, videoId, messageState.Id);
+    }
   }
 
   public async Task<MinimalMessageState?> GetMessageStateAsync(int videoId)
@@ -55,20 +67,28 @@ public class CachedData : ICachedData
     command.Parameters.AddWithValue("$videoId", videoId);
 
     await using var reader = await command.ExecuteReaderAsync().ConfigureAwait(false);
-    if (!await reader.ReadAsync().ConfigureAwait(false)) return null;
-    if (reader.IsDBNull(0)) return null;
-
-    var messageIdSigned = reader.GetInt64(0);
-    if (messageIdSigned <= 0) return null;
-
-    _ = reader.TryGetDateTimeOffset(1, out var insertionTimestamp);
-
-    return new MinimalMessageState
+    try
     {
-      Id = (ulong)messageIdSigned,
-      EarliestKnownDate = insertionTimestamp,
-      Reactions = []
-    };
+      if (!await reader.ReadAsync().ConfigureAwait(false)) return null;
+      if (await reader.IsDBNullAsync(0).ConfigureAwait(false)) return null;
+
+      var messageIdSigned = reader.GetInt64(0);
+      if (messageIdSigned <= 0) return null;
+
+      _ = reader.TryGetDateTimeOffset(1, out var insertionTimestamp);
+
+      return new MinimalMessageState
+      {
+        Id = (ulong)messageIdSigned,
+        EarliestKnownDate = insertionTimestamp,
+        Reactions = []
+      };
+    }
+    catch (DbException ex)
+    {
+      LogFailedToRetrieveMessageState(_logger, ex, videoId);
+      return null;
+    }
   }
 
   public async Task<IReadOnlyList<(int videoId, MinimalMessageState messageState)>> GetAllMessagesAsync()
@@ -87,21 +107,28 @@ public class CachedData : ICachedData
     var messages = new List<(int, MinimalMessageState)>();
 
     var reader = await command.ExecuteReaderAsync().ConfigureAwait(false);
-    while (await reader.ReadAsync().ConfigureAwait(false))
+    try
     {
-      var videoId = reader.GetInt32(0);
-
-      var messageIdSigned = reader.GetInt64(1);
-      if (messageIdSigned <= 0) continue;
-
-      _ = reader.TryGetDateTimeOffset(2, out var insertionTimestamp);
-
-      messages.Add((videoId, new MinimalMessageState
+      while (await reader.ReadAsync().ConfigureAwait(false))
       {
-        Id = (ulong)messageIdSigned,
-        EarliestKnownDate = insertionTimestamp,
-        Reactions = []
-      }));
+        var videoId = reader.GetInt32(0);
+
+        var messageIdSigned = reader.GetInt64(1);
+        if (messageIdSigned <= 0) continue;
+
+        _ = reader.TryGetDateTimeOffset(2, out var insertionTimestamp);
+
+        messages.Add((videoId, new MinimalMessageState
+        {
+          Id = (ulong)messageIdSigned,
+          EarliestKnownDate = insertionTimestamp,
+          Reactions = []
+        }));
+      }
+    }
+    catch (DbException ex)
+    {
+      LogFailedToRetrieveMessages(_logger, ex);
     }
 
     return messages;
@@ -123,7 +150,15 @@ public class CachedData : ICachedData
     command.Parameters.AddWithValue("$fileId", fileId);
     command.Parameters.AddWithValue("$timestamp", DateTimeOffset.UtcNow.ToString("O"));
 
-    await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    try
+    {
+      if (await command.ExecuteNonQueryAsync().ConfigureAwait(false) > 0)
+        LogTrackedFile(_logger, fileId);
+    }
+    catch (DbException ex)
+    {
+      LogFailedToTrackFile(_logger, ex, fileId);
+    }
   }
 
   public async Task<bool> IsFileTrackedAsync(int fileId)
@@ -137,7 +172,16 @@ public class CachedData : ICachedData
     command.CommandText = "SELECT EXISTS(SELECT 1 FROM WebhookDumpEntries WHERE VideoFileId = $fileId)";
     command.Parameters.AddWithValue("$fileId", fileId);
 
-    var result = (long?)await command.ExecuteScalarAsync().ConfigureAwait(false);
+    long? result = null;
+    try
+    {
+      result = (long?)await command.ExecuteScalarAsync().ConfigureAwait(false);
+    }
+    catch (DbException ex)
+    {
+      LogFailedToCheckFileTracked(_logger, ex, fileId);
+    }
+
     return result.GetValueOrDefault() != 0;
   }
 
@@ -161,7 +205,15 @@ public class CachedData : ICachedData
       command.CommandText = $"SELECT VideoFileId FROM WebhookDumpEntries WHERE VideoFileId IN ({parameterList})";
 
       await using var reader = await command.ExecuteReaderAsync().ConfigureAwait(false);
-      while (await reader.ReadAsync().ConfigureAwait(false)) trackedIds.Add(reader.GetInt32(0));
+      try
+      {
+        while (await reader.ReadAsync().ConfigureAwait(false))
+          trackedIds.Add(reader.GetInt32(0));
+      }
+      catch (DbException ex)
+      {
+        LogFailedToRetrieveTrackedFileIds(_logger, ex);
+      }
     }
 
     return trackedIds;
@@ -176,7 +228,14 @@ public class CachedData : ICachedData
     command.CommandText = "DELETE FROM WebhookDumpEntries WHERE VideoFileId = $videoId";
     command.Parameters.AddWithValue("$videoId", videoId);
 
-    await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    try
+    {
+      await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+    catch (DbException ex)
+    {
+      LogFailedToDeleteEntry(_logger, ex, videoId);
+    }
   }
 
   public async Task CleanupOldEntriesAsync(TimeSpan retentionPeriod)
@@ -190,7 +249,14 @@ public class CachedData : ICachedData
     command.CommandText = "DELETE FROM WebhookDumpEntries WHERE InsertionTimestamp < $cutoff;";
     command.Parameters.AddWithValue("$cutoff", cutoff);
 
-    await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    try
+    {
+      await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+    catch (DbException ex)
+    {
+      LogFailedToCleanupOldEntries(_logger, ex);
+    }
   }
 
   public async Task DeleteEntriesAsync(IEnumerable<int> videoIds)
@@ -210,7 +276,14 @@ public class CachedData : ICachedData
       var parameterList = command.AddIntParameterList("$id", chunk);
       command.CommandText = $"DELETE FROM WebhookDumpEntries WHERE VideoFileId IN ({parameterList})";
 
-      await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+      try
+      {
+        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+      }
+      catch (DbException ex)
+      {
+        LogFailedToDeleteEntries(_logger, ex);
+      }
     }
   }
 
@@ -236,6 +309,47 @@ public class CachedData : ICachedData
 
       CREATE INDEX IF NOT EXISTS IX_WebhookDumpEntries_InsertionTimestamp ON WebhookDumpEntries(InsertionTimestamp);
       """;
-    command.ExecuteNonQuery();
+    if (command.ExecuteNonQuery() > 0) LogDatabaseInit(_logger);
   }
+
+  #region LoggerMessages
+
+  [LoggerMessage(LogLevel.Trace, "Updated message state for video (VideoId={VideoId},MessageId={MessageId})")]
+  static partial void LogUpdatedMessageState(ILogger<CachedData> logger, int videoId, ulong messageId);
+
+  [LoggerMessage(LogLevel.Error, "Failed to updated message state for video (VideoId={videoId},MessageId={messageId})")]
+  static partial void LogFailedToUpdatedMessageState(ILogger<CachedData> logger, Exception ex, int videoId,
+    ulong messageId);
+
+  [LoggerMessage(LogLevel.Error, "Failed to retrieve message state for video (VideoId={VideoId})")]
+  static partial void LogFailedToRetrieveMessageState(ILogger<CachedData> logger, Exception ex, int videoId);
+
+  [LoggerMessage(LogLevel.Error, "Failed to retrieve all messages")]
+  static partial void LogFailedToRetrieveMessages(ILogger<CachedData> logger, Exception ex);
+
+  [LoggerMessage(LogLevel.Trace, "Tracked file (VideoId={videoId})")]
+  static partial void LogTrackedFile(ILogger<CachedData> logger, int videoId);
+
+  [LoggerMessage(LogLevel.Error, "Failed to track file (VideoId={VideoId})")]
+  static partial void LogFailedToTrackFile(ILogger<CachedData> logger, Exception ex, int videoId);
+
+  [LoggerMessage(LogLevel.Error, "Failed to check if file is tracked (VideoId={VideoId})")]
+  static partial void LogFailedToCheckFileTracked(ILogger<CachedData> logger, Exception ex, int videoId);
+
+  [LoggerMessage(LogLevel.Error, "Failed to retrieve tracked file ids")]
+  static partial void LogFailedToRetrieveTrackedFileIds(ILogger<CachedData> logger, Exception ex);
+
+  [LoggerMessage(LogLevel.Error, "Failed to delete entry for video (VideoId={VideoId})")]
+  static partial void LogFailedToDeleteEntry(ILogger<CachedData> logger, Exception ex, int videoId);
+
+  [LoggerMessage(LogLevel.Error, "Failed to cleanup old entries")]
+  static partial void LogFailedToCleanupOldEntries(ILogger<CachedData> logger, Exception ex);
+
+  [LoggerMessage(LogLevel.Error, "Failed to delete entries for videos")]
+  static partial void LogFailedToDeleteEntries(ILogger<CachedData> logger, Exception ex);
+
+  [LoggerMessage(LogLevel.Information, "Plugin database initialized successfully.")]
+  static partial void LogDatabaseInit(ILogger<CachedData> logger);
+
+  #endregion
 }

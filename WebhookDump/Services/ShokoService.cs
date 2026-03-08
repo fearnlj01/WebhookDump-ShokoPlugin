@@ -33,20 +33,23 @@ public partial class ShokoService(
 
     if (targetProvider is null || !hashTypes.Contains("CRC32")) return Task.CompletedTask; // Oh well...
 
-    if (targetProvider.EnabledHashTypes.Add("CRC32"))
-      videoHashingService.UpdateProviders(targetProvider);
+    if (!targetProvider.EnabledHashTypes.Add("CRC32")) return Task.CompletedTask;
+
+    LogCrc32HasherEnabled(logger);
+    videoHashingService.UpdateProviders(targetProvider);
 
     return Task.CompletedTask;
   }
 
   public async Task DumpFile(IVideo video)
   {
+    LogAvdumpScheduled(logger, video.ID);
     await anidbService.ScheduleAvdumpVideos(video).ConfigureAwait(false);
   }
 
   public async Task RescanFile(IVideo video, int matchAttempts = 1)
   {
-    // We only want to rescan the file if it's already being tracked.
+    // Assert that we're already/still tracking the file before we rescan it.
     if (!await fileCachedData.IsFileTrackedAsync(video.ID).ConfigureAwait(false)) return;
 
     LogRescanningFile(logger, video.ID, matchAttempts);
@@ -61,7 +64,7 @@ public partial class ShokoService(
   public IReadOnlyList<IAnidbAnimeSearchResult> SearchForTitles(IVideo video)
   {
     var title = video.EarliestKnownName.ExtractFileTitle();
-    LogSearchingForTitleTitle(logger, title);
+    LogSearchingForTitle(logger, title);
     var searchResult = anidbService.Search(title, true);
     if (searchResult is not { Count: > 0 }) return searchResult;
 
@@ -88,9 +91,19 @@ public partial class ShokoService(
       .Count(ma => ma.AttemptedProviderNames.Contains("AniDB"));
   }
 
-  [LoggerMessage(LogLevel.Information, "Rescanning file (FileId={id},Attempt={attempts})")]
-  static partial void LogRescanningFile(ILogger<ShokoService> logger, int id, int attempts);
+  #region LoggerMessages
+
+  [LoggerMessage(LogLevel.Trace, "Scheduling file match (VideoId={VideoId},MatchAttempts={MatchAttempts})")]
+  static partial void LogRescanningFile(ILogger<ShokoService> logger, int videoId, int matchAttempts);
 
   [LoggerMessage(LogLevel.Trace, "Searching for title: '{title}'")]
-  static partial void LogSearchingForTitleTitle(ILogger<ShokoService> logger, string title);
+  static partial void LogSearchingForTitle(ILogger<ShokoService> logger, string title);
+
+  [LoggerMessage(LogLevel.Trace, "Scheduling AVDump for video (VideoId={VideoId})")]
+  static partial void LogAvdumpScheduled(ILogger<ShokoService> logger, int videoId);
+
+  [LoggerMessage(LogLevel.Trace, "Enabling CRC32 hashing for built-in hasher provider.")]
+  static partial void LogCrc32HasherEnabled(ILogger<ShokoService> logger);
+
+  #endregion
 }

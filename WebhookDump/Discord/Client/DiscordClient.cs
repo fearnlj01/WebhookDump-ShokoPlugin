@@ -96,10 +96,10 @@ public partial class DiscordClient : IDisposable
       if (response.IsSuccessStatusCode)
         return await response.Content.ReadFromJsonAsync<MinimalMessageState>(SerializerOptions).ConfigureAwait(false);
     }
-    catch
+    catch (Exception ex)
     {
-      LogExceptionThrownWhenSendingAWebhookToDiscord();
-      LogAnExceptionOccuredInTheWebhookdumpPlugin();
+      LogExceptionSendingWebhook(_logger);
+      LogGenericExceptionThrown(_logger, ex);
     }
 
     return null;
@@ -114,10 +114,10 @@ public partial class DiscordClient : IDisposable
       await WaitUntilOnlineAsync().ConfigureAwait(false);
       _ = await _httpClient.PatchAsJsonAsync(uri, webhook, SerializerOptions).ConfigureAwait(false);
     }
-    catch
+    catch (Exception ex)
     {
-      LogExceptionThrownWhenPatchingAPreviousWebhookMessageMessageidId(messageId);
-      LogAnExceptionOccuredInTheWebhookdumpPlugin();
+      LogExceptionThrownPatchingWebhookMessage(_logger, messageId);
+      LogGenericExceptionThrown(_logger, ex);
     }
   }
 
@@ -147,41 +147,45 @@ public partial class DiscordClient : IDisposable
       await WaitUntilOnlineAsync().ConfigureAwait(false);
       _ = await _httpClient.PatchAsync(uri, form).ConfigureAwait(false);
     }
-    catch
+    catch (Exception ex)
     {
-      LogExceptionThrownWhenPatchingAPreviousWebhookMessageMessageidId(messageId);
-      LogAnExceptionOccuredInTheWebhookdumpPlugin();
+      LogExceptionThrownPatchingWebhookMessage(_logger, messageId);
+      LogGenericExceptionThrown(_logger, ex);
     }
   }
 
   public async Task<MinimalMessageState?> GetWebhookMessageState(ulong messageId)
   {
     var uri = new Uri($"messages/{messageId}", UriKind.Relative);
-    // TODO: Take advantage of the Shoko connectivity checks to determine if we are connected to the internet
 
     try
     {
       await WaitUntilOnlineAsync().ConfigureAwait(false);
       return await _httpClient.GetFromJsonAsync<MinimalMessageState>(uri, SerializerOptions).ConfigureAwait(false);
     }
-    catch
+    catch (Exception ex)
     {
-      LogUnableToRetreiveDiscordMessageStatusMessageidId(messageId);
-      LogAnExceptionOccuredInTheWebhookdumpPlugin();
+      LogUnableToRetrieveDiscordMessage(_logger, messageId);
+      LogGenericExceptionThrown(_logger, ex);
     }
 
     return null;
   }
 
+  #region LoggerMessages
+
   [LoggerMessage(LogLevel.Error, "Exception thrown when sending a webhook to discord!")]
-  partial void LogExceptionThrownWhenSendingAWebhookToDiscord();
+  static partial void LogExceptionSendingWebhook(ILogger<DiscordClient> logger);
 
   [LoggerMessage(LogLevel.Debug, "An exception occured in the WebhookDump plugin!")]
-  partial void LogAnExceptionOccuredInTheWebhookdumpPlugin();
+  static partial void LogGenericExceptionThrown(ILogger<DiscordClient> logger, Exception ex);
 
   [LoggerMessage(LogLevel.Error, "Exception thrown when patching a previous webhook message (MessageId={id})")]
-  partial void LogExceptionThrownWhenPatchingAPreviousWebhookMessageMessageidId(ulong id);
+  static partial void LogExceptionThrownPatchingWebhookMessage(ILogger<DiscordClient> logger,
+    ulong id);
 
-  [LoggerMessage(LogLevel.Error, "Unable to retreive discord message status (MessageId={id})")]
-  partial void LogUnableToRetreiveDiscordMessageStatusMessageidId(ulong id);
+  [LoggerMessage(LogLevel.Error, "Unable to retrieve discord message status (MessageId={id})")]
+  static partial void LogUnableToRetrieveDiscordMessage(ILogger<DiscordClient> logger, ulong id);
+
+  #endregion
 }

@@ -88,12 +88,13 @@ public partial class ShokoEventSubscriber : IDisposable
     _ = task.ContinueWith(t =>
     {
       if (t.Exception is not null)
-        LogBackgroundTaskException(operationName, t.Exception);
+        LogBackgroundTaskException(_logger, operationName, t.Exception);
     }, TaskContinuationOptions.OnlyOnFaulted);
   }
 
   [LoggerMessage(LogLevel.Error, "An exception occurred while running a background task. (Operation={operationName})")]
-  partial void LogBackgroundTaskException(string operationName, Exception ex);
+  static partial void LogBackgroundTaskException(ILogger<ShokoEventSubscriber> logger, string operationName,
+    Exception ex);
 
   [LoggerMessage(LogLevel.Debug,
     "Neither series nor episode is defined for a matched video. (VideoId={video}, Episodes={episodes}, Series={series})")]

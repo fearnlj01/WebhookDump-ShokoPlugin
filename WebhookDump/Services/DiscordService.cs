@@ -14,7 +14,6 @@ using Shoko.Plugin.WebhookDump.Persistence;
 
 namespace Shoko.Plugin.WebhookDump.Services;
 
-// TODO: Implement error handling.
 public partial class DiscordService(
   DiscordClient discord,
   ShokoService shoko,
@@ -29,17 +28,27 @@ public partial class DiscordService(
 
   public async Task PatchMatchedWebhook(IVideo video, IEpisode episode, ISeries series)
   {
-    var currentMessageState = await cachedData.GetMessageStateAsync(video.ID).ConfigureAwait(false);
-    if (currentMessageState is null) return;
+    LogAttemptingToUpdateWebhook(logger, video.ID, episode.ID, series.ID);
+    var messageState = await cachedData.GetMessageStateAsync(video.ID).ConfigureAwait(false);
+    if (messageState is null) return;
 
     var posterStream = series.DefaultPoster?.GetStream();
-    var message = CreateMatchedWebhook(video, episode, series, posterStream != null);
+    try
+    {
+      var message = CreateMatchedWebhook(video, episode, series, posterStream is not null);
 
-    await discord.PatchWebhook(currentMessageState.Id, message, posterStream).ConfigureAwait(false);
+      await discord.PatchWebhook(messageState.Id, message, posterStream).ConfigureAwait(false);
+      LogWebhookUpdated(logger, video.ID, episode.ID, series.ID, messageState.Id);
+    }
+    catch (CrossReferenceException ex)
+    {
+      LogUnableToUpdateWebhookMessage(logger, video.ID, episode.ID, series.ID, messageState.Id, ex.Message);
+    }
   }
 
   public async Task SendUnmatchedWebhook(IVideo video)
   {
+    LogNewWebhookMessageAttempt(logger, video.ID);
     if (!await cachedData.IsFileTrackedAsync(video.ID).ConfigureAwait(false)) return;
 
     var message = CreateUnmatchedWebhookMessage(video);
@@ -47,8 +56,10 @@ public partial class DiscordService(
 
     var messageState = await discord.SendWebhook(message).ConfigureAwait(false);
 
-    if (messageState is not null)
-      await cachedData.SaveMessageStateAsync(video.ID, messageState).ConfigureAwait(false);
+    if (messageState is null) return;
+
+    LogNewWebhookMessageCreated(logger, video.ID, messageState.Id);
+    await cachedData.SaveMessageStateAsync(video.ID, messageState).ConfigureAwait(false);
   }
 
   private Message? CreateUnmatchedWebhookMessage(IVideo video)
@@ -61,6 +72,8 @@ public partial class DiscordService(
     try
     {
       var titles = shoko.SearchForTitles(video);
+      if (titles.Count == 0) LogNoLikelyTitlesFound(logger, video.ID);
+
       foreach (var series in titles)
         embedBuilder.AddField(new Field
         {
@@ -71,13 +84,15 @@ public partial class DiscordService(
     }
     catch (RestrictedSearchResultException)
     {
-      LogUnableToCreateWebhookMessageTopMatchIsRestricted(logger);
+      LogNoWebhookMessageAsTopMatchIsRestricted(logger);
       return null;
     }
 
     var crc = video.Crc32;
     if (!string.IsNullOrEmpty(crc) && (!video.EarliestKnownName?.Contains(crc) ?? true))
       embedBuilder.SetColor(CrcMismatchColor);
+      LogCrcMismatch(logger, video.ID, crc, video.EarliestKnownName);
+    }
 
     var embed = embedBuilder.Build();
     return webhookBuilder.SetEmbeds(embed).Build();
@@ -144,8 +159,6 @@ public partial class DiscordService(
   private static Footer GetFooter(IVideo video)
   {
     var sb = new StringBuilder();
-    var crc = video.Crc32 ?? string.Empty;
-    var crcMatch = video.EarliestKnownName?.Contains(crc) ?? false;
 
     sb.Append("File ID: ").Append(video.ID)
       .Append(" | ").Append("CRC: ").Append(crc);
@@ -155,7 +168,41 @@ public partial class DiscordService(
     return new Footer { Text = sb.ToString() };
   }
 
+  #region LoggerMessages
+
+  [LoggerMessage(LogLevel.Warning,
+    "Unable to update webhook message (VideoId={VideoId},EpisodeId={EpisodeId},SeriesId={SeriesId},MessageId={MessageId}) Message=\n{ExceptionMessage}")]
+  static partial void LogUnableToUpdateWebhookMessage(ILogger<DiscordService> logger, int videoId, int episodeId,
+    int seriesId, ulong messageId, string exceptionMessage);
+
   [LoggerMessage(LogLevel.Information,
     "Unable to create webhook message - Top match is restricted and the settings prevent this being posted.")]
-  static partial void LogUnableToCreateWebhookMessageTopMatchIsRestricted(ILogger<DiscordService> logger);
+  static partial void LogNoWebhookMessageAsTopMatchIsRestricted(ILogger<DiscordService> logger);
+
+  [LoggerMessage(LogLevel.Trace,
+    "Attempting to update message for video. (VideoId={VideoId},EpisodeId={EpisodeId},SeriesId={SeriesId})")]
+  static partial void LogAttemptingToUpdateWebhook(ILogger<DiscordService> logger, int videoId, int episodeId,
+    int seriesId);
+
+
+  [LoggerMessage(LogLevel.Trace,
+    "Webhook message updated. (VideoId={VideoId},EpisodeId={EpisodeId},SeriesId={SeriesId},MessageId={MessageId})")]
+  static partial void LogWebhookUpdated(ILogger<DiscordService> logger, int videoID, int episodeID, int seriesID,
+    ulong messageId);
+
+  [LoggerMessage(LogLevel.Trace, "Attempting to send new webhook message. (VideoId={VideoId})")]
+  static partial void LogNewWebhookMessageAttempt(ILogger<DiscordService> logger, int videoId);
+
+  [LoggerMessage(LogLevel.Trace, "Webhook message created. (VideoId={VideoId},MessageId={MessageId})")]
+  static partial void LogNewWebhookMessageCreated(ILogger<DiscordService> logger, int videoId, ulong messageId);
+
+  [LoggerMessage(LogLevel.Trace, "No likely titles found for video. (VideoId={VideoId})")]
+  static partial void LogNoLikelyTitlesFound(ILogger<DiscordService> logger, int videoId);
+
+  [LoggerMessage(LogLevel.Trace,
+    "CRC32 not found in file title - Overriding Webhook embed colour. (VideoId={VideoId},Crc32={Crc32},EarliestKnownName={EarliestKnownName})")]
+  static partial void LogCrcMismatch(ILogger<DiscordService> logger, int videoId, string? crc32,
+    string? earliestKnownName);
+
+  #endregion
 }
