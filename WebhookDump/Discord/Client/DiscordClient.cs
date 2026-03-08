@@ -6,12 +6,15 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Shoko.Abstractions.Config;
+using Shoko.Abstractions.Enums;
+using Shoko.Abstractions.Events;
+using Shoko.Abstractions.Services;
 using Shoko.Plugin.WebhookDump.Configurations;
 using Shoko.Plugin.WebhookDump.Discord.Models;
 
 namespace Shoko.Plugin.WebhookDump.Discord.Client;
 
-public partial class DiscordClient
+public partial class DiscordClient : IDisposable
 {
   private static readonly JsonSerializerOptions SerializerOptions = new()
   {
@@ -20,21 +23,66 @@ public partial class DiscordClient
     NumberHandling = JsonNumberHandling.AllowReadingFromString
   };
 
+  private readonly IConnectivityService _connectivityService;
+
   private readonly HttpClient _httpClient;
   private readonly ILogger<DiscordClient> _logger;
+  private readonly Lock _onlineStateLock = new();
+
+  private volatile bool _currentlyOnline;
+  private TaskCompletionSource _onlineTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
   public DiscordClient(
     HttpClient httpClient,
     ConfigurationProvider<PluginConfiguration> pluginConfigurationProvider,
+    IConnectivityService connectivityService,
     ILogger<DiscordClient> logger
   )
   {
     _httpClient = httpClient;
+    _connectivityService = connectivityService;
     _logger = logger;
     var webhookUrl = pluginConfigurationProvider.Load().Webhook.WebhookUrl;
 
     httpClient.BaseAddress =
       new Uri(webhookUrl.EndsWith('/') ? webhookUrl : webhookUrl + '/');
+
+    _currentlyOnline =
+      _connectivityService.NetworkAvailability is NetworkAvailability.Internet or NetworkAvailability.PartialInternet;
+    if (_currentlyOnline)
+      _onlineTcs.SetResult();
+
+    _connectivityService.NetworkAvailabilityChanged += OnNetworkAvailabilityChanged;
+  }
+
+  public void Dispose()
+  {
+    _httpClient.Dispose();
+    _connectivityService.NetworkAvailabilityChanged -= OnNetworkAvailabilityChanged;
+
+    GC.SuppressFinalize(this);
+  }
+
+  private void OnNetworkAvailabilityChanged(object? sender, NetworkAvailabilityChangedEventArgs e)
+  {
+    var isNowOnline = e.NetworkAvailability is NetworkAvailability.Internet or NetworkAvailability.PartialInternet;
+    lock (_onlineStateLock)
+    {
+      if (_currentlyOnline == isNowOnline) return;
+      _currentlyOnline = isNowOnline;
+      if (isNowOnline)
+        _onlineTcs.TrySetResult();
+      else
+        _onlineTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+  }
+
+  private Task WaitUntilOnlineAsync()
+  {
+    lock (_onlineStateLock)
+    {
+      return _onlineTcs.Task;
+    }
   }
 
   public async Task<MinimalMessageState?> SendWebhook(Message webhook)
@@ -43,6 +91,7 @@ public partial class DiscordClient
 
     try
     {
+      await WaitUntilOnlineAsync().ConfigureAwait(false);
       var response = await _httpClient.PostAsJsonAsync(uri, webhook, SerializerOptions).ConfigureAwait(false);
       if (response.IsSuccessStatusCode)
         return await response.Content.ReadFromJsonAsync<MinimalMessageState>(SerializerOptions).ConfigureAwait(false);
@@ -62,6 +111,7 @@ public partial class DiscordClient
 
     try
     {
+      await WaitUntilOnlineAsync().ConfigureAwait(false);
       _ = await _httpClient.PatchAsJsonAsync(uri, webhook, SerializerOptions).ConfigureAwait(false);
     }
     catch
@@ -94,6 +144,7 @@ public partial class DiscordClient
 
     try
     {
+      await WaitUntilOnlineAsync().ConfigureAwait(false);
       _ = await _httpClient.PatchAsync(uri, form).ConfigureAwait(false);
     }
     catch
@@ -110,6 +161,7 @@ public partial class DiscordClient
 
     try
     {
+      await WaitUntilOnlineAsync().ConfigureAwait(false);
       return await _httpClient.GetFromJsonAsync<MinimalMessageState>(uri, SerializerOptions).ConfigureAwait(false);
     }
     catch
