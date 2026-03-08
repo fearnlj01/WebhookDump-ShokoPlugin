@@ -1,12 +1,13 @@
 ﻿using System.Globalization;
-using System.Text;
 using Microsoft.Data.Sqlite;
 using Shoko.Plugin.WebhookDump.Discord.Models;
+using Shoko.Plugin.WebhookDump.Extensions;
 
 namespace Shoko.Plugin.WebhookDump.Persistence;
 
 public class CachedData : ICachedData
 {
+  private const int MaxChunkSize = 500;
   private readonly string _connectionString;
 
   public CachedData(string dbPath)
@@ -156,31 +157,19 @@ public class CachedData : ICachedData
     var ids = fileIds.Where(id => id > 0).Distinct().ToArray();
     if (ids.Length == 0) return new HashSet<int>();
 
-    const int chunkSize = 500;
     var trackedIds = new HashSet<int>();
 
     await using var connection = new SqliteConnection(_connectionString);
     await connection.OpenAsync().ConfigureAwait(false);
 
-    for (var offset = 0; offset < ids.Length; offset += chunkSize)
+    for (var offset = 0; offset < ids.Length; offset += MaxChunkSize)
     {
-      var chunk = ids.AsSpan(offset, Math.Min(chunkSize, ids.Length - offset));
+      var chunk = ids.AsSpan(offset, Math.Min(MaxChunkSize, ids.Length - offset));
 
       await using var command = connection.CreateCommand();
 
-      var sb = new StringBuilder();
-      sb.Append("SELECT VideoFileId FROM WebhookDumpEntries WHERE VideoFileId IN (");
-
-      for (var i = 0; i < chunk.Length; i++)
-      {
-        if (i != 0) sb.Append(", ");
-        var paramName = $"$id{i}";
-        sb.Append(paramName);
-        command.Parameters.AddWithValue(paramName, chunk[i]);
-      }
-
-      sb.Append(");");
-      command.CommandText = sb.ToString();
+      var parameterList = command.AddIntParameterList("$id", chunk);
+      command.CommandText = $"SELECT VideoFileId FROM WebhookDumpEntries WHERE VideoFileId IN ({parameterList})";
 
       await using var reader = await command.ExecuteReaderAsync().ConfigureAwait(false);
       while (await reader.ReadAsync().ConfigureAwait(false)) trackedIds.Add(reader.GetInt32(0));
@@ -213,6 +202,27 @@ public class CachedData : ICachedData
     command.Parameters.AddWithValue("$cutoff", cutoff);
 
     await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+  }
+
+  public async Task DeleteEntriesAsync(IEnumerable<int> videoIds)
+  {
+    var ids = videoIds.Distinct().ToArray();
+    if (ids.Length == 0) return;
+
+    await using var connection = new SqliteConnection(_connectionString);
+    await connection.OpenAsync().ConfigureAwait(false);
+
+    for (var offset = 0; offset < ids.Length; offset += MaxChunkSize)
+    {
+      var chunk = ids.AsSpan(offset, Math.Min(MaxChunkSize, ids.Length - offset));
+
+      await using var command = connection.CreateCommand();
+
+      var parameterList = command.AddIntParameterList("$id", chunk);
+      command.CommandText = $"DELETE FROM WebhookDumpEntries WHERE VideoFileId IN ({parameterList})";
+
+      await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
   }
 
   private void InitializeDatabase()

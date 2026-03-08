@@ -34,6 +34,12 @@ public class CachedDataProxy : ICachedDataProxy
       .DeleteEntryAsync(videoId).ConfigureAwait(false);
   }
 
+  public async Task DeleteEntriesAsync(IEnumerable<int> videoIds)
+  {
+    await (await GetDatabaseAsync().ConfigureAwait(false))
+      .DeleteEntriesAsync(videoIds).ConfigureAwait(false);
+  }
+
   public async Task SaveTrackedFileAsync(int fileId)
   {
     await (await GetDatabaseAsync().ConfigureAwait(false))

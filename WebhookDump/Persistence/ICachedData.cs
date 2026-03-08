@@ -8,6 +8,7 @@ public interface ICachedData
   Task<MinimalMessageState?> GetMessageStateAsync(int videoId);
   Task<IReadOnlyList<(int videoId, MinimalMessageState messageState)>> GetAllMessagesAsync();
   Task DeleteEntryAsync(int videoId);
+  Task DeleteEntriesAsync(IEnumerable<int> videoIds);
 
   Task SaveTrackedFileAsync(int fileId);
   Task<bool> IsFileTrackedAsync(int fileId);
