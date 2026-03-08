@@ -1,5 +1,4 @@
-﻿using System.Globalization;
-using Microsoft.Data.Sqlite;
+﻿using Microsoft.Data.Sqlite;
 using Shoko.Plugin.WebhookDump.Discord.Models;
 using Shoko.Plugin.WebhookDump.Extensions;
 
@@ -62,12 +61,7 @@ public class CachedData : ICachedData
     var messageIdSigned = reader.GetInt64(0);
     if (messageIdSigned <= 0) return null;
 
-    var insertionTimestampRaw = reader.GetString(1);
-    var insertionTimestamp =
-      DateTimeOffset.TryParse(insertionTimestampRaw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind,
-        out var timestamp)
-        ? timestamp
-        : DateTimeOffset.UtcNow;
+    _ = reader.TryGetDateTimeOffset(1, out var insertionTimestamp);
 
     return new MinimalMessageState
     {
@@ -100,12 +94,7 @@ public class CachedData : ICachedData
       var messageIdSigned = reader.GetInt64(1);
       if (messageIdSigned <= 0) continue;
 
-      var insertionTimestampRaw = reader.GetString(2);
-      var insertionTimestamp =
-        DateTimeOffset.TryParse(insertionTimestampRaw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind,
-          out var timestamp)
-          ? timestamp
-          : DateTimeOffset.UtcNow;
+      _ = reader.TryGetDateTimeOffset(2, out var insertionTimestamp);
 
       messages.Add((videoId, new MinimalMessageState
       {
