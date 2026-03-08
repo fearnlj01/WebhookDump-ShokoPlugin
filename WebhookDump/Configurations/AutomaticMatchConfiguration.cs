@@ -28,7 +28,7 @@ public class AutomaticMatchConfiguration
       """
       If this **and** the Discord Webhook feature are both enabled, the plugin will check all the messages that it sends
       every fifteen minutes to see if they have any reactions. If a reaction is found, the plugin will attempt to rescan
-      the corresponding file **indefinitely** until the file is matched, or the message is deleted on Discord.
+      (up to the limit above) the corresponding file until the file is matched or the message is deleted on Discord.
       """)]
   [DefaultValue(false)]
   public bool WatchReactions { get; set; }

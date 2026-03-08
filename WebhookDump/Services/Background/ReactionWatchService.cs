@@ -10,12 +10,15 @@ namespace Shoko.Plugin.WebhookDump.Services.Background;
 public class ReactionWatchService(
   ICachedData messageCachedData,
   ConfigurationProvider<PluginConfiguration> pluginConfigurationProvider,
-  ShokoService shokoService,
   IServiceScopeFactory scopeFactory
 ) : BackgroundService
 {
-  private bool AttemptAutoMatch => pluginConfigurationProvider.Load().AutomaticMatching is
-    { WatchReactions: true, Enabled: true };
+  private PluginConfiguration PluginConfiguration => pluginConfigurationProvider.Load();
+
+  private bool AttemptAutoMatch => PluginConfiguration is
+    { AutomaticMatching: { WatchReactions: true, Enabled: true }, Webhook.Enabled: true };
+
+  private int MaxReactionScanAttempts => PluginConfiguration.AutomaticMatching.MaxReactionScanAttempts;
 
   private static TimeSpan Interval => TimeSpan.FromMinutes(15);
 
@@ -32,22 +35,31 @@ public class ReactionWatchService(
         return;
       }
 
-      if (!AttemptAutoMatch) continue;
+      if (AttemptAutoMatch)
+        await CheckMessages().ConfigureAwait(false);
+    }
+  }
 
-      var messages = await messageCachedData.GetAllMessagesAsync().ConfigureAwait(false);
-      if (messages.Count == 0) continue;
+  private async Task CheckMessages()
+  {
+    var messages = await messageCachedData.GetAllMessagesAsync().ConfigureAwait(false);
+    if (messages.Count == 0) return;
 
-      using var scope = scopeFactory.CreateScope();
-      var discordClient = scope.ServiceProvider.GetRequiredService<DiscordClient>();
+    using var scope = scopeFactory.CreateScope();
+    var discordClient = scope.ServiceProvider.GetRequiredService<DiscordClient>();
+    var shokoService = scope.ServiceProvider.GetRequiredService<ShokoService>();
 
-      foreach (var (videoId, messageState) in messages)
-      {
-        var newState = await discordClient.GetWebhookMessageState(messageState.Id).ConfigureAwait(false);
-        if (newState?.Reactions is null or { Count: 0 }) continue;
+    foreach (var (videoId, messageState) in messages)
+    {
+      var newState = await discordClient.GetWebhookMessageState(messageState.Id).ConfigureAwait(false);
+      if (newState?.Reactions is null or { Count: 0 }) continue;
 
-        var video = shokoService.GetVideoFromId(videoId);
-        if (video is not null) await shokoService.RescanFile(video).ConfigureAwait(false);
-      }
+      var video = shokoService.GetVideoFromId(videoId);
+      if (video is null) continue;
+
+      var matchAttempts = shokoService.GetVideoAnidbMatchAttemptCount(video);
+      if (matchAttempts <= MaxReactionScanAttempts)
+        await shokoService.RescanFile(video).ConfigureAwait(false);
     }
   }
 }
