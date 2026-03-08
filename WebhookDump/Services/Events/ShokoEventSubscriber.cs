@@ -13,7 +13,6 @@ namespace Shoko.Plugin.WebhookDump.Services.Events;
 
 public partial class ShokoEventSubscriber : IDisposable
 {
-  private readonly IAnidbService _anidbService;
   private readonly ICachedData _cachedData;
 
   private readonly ConcurrentDictionary<int, CancellationTokenSource> _cancellationTokens = [];
@@ -21,7 +20,6 @@ public partial class ShokoEventSubscriber : IDisposable
   private readonly IMetadataService _metadataService;
   private readonly ConfigurationProvider<PluginConfiguration> _pluginConfigurationProvider;
   private readonly IServiceScopeFactory _scopeFactory;
-  private readonly ShokoService _shokoService;
   private readonly IVideoReleaseService _videoReleaseService;
   private readonly IVideoService _videoService;
 
@@ -29,42 +27,35 @@ public partial class ShokoEventSubscriber : IDisposable
     IVideoService videoService,
     IVideoReleaseService videoReleaseService,
     IMetadataService metadataService,
-    IAnidbService anidbService,
     ICachedData cachedData,
-    ShokoService shokoService,
     ILogger<ShokoEventSubscriber> logger,
     ConfigurationProvider<PluginConfiguration> pluginConfigurationProvider,
     IServiceScopeFactory scopeFactory
   )
   {
     _cachedData = cachedData;
-    _shokoService = shokoService;
     _logger = logger;
     _videoService = videoService;
     _videoReleaseService = videoReleaseService;
     _scopeFactory = scopeFactory;
     _metadataService = metadataService;
-    _anidbService = anidbService;
 
     _pluginConfigurationProvider = pluginConfigurationProvider;
 
     _videoReleaseService.SearchCompleted += OnSearchCompleted;
     _videoReleaseService.ReleaseSaved += OnReleaseSaved;
     _videoService.VideoFileDeleted += OnVideoFileDeleted;
-    _anidbService.AvdumpEvent += OnAvdumpEvent;
     _metadataService.EpisodeAdded += OnEpisodeAdded;
   }
 
-  private bool WebhookEnabled => _pluginConfigurationProvider.Load().Webhook.Enabled;
-  private AutomaticMatchConfiguration AutoMatchConfiguration => _pluginConfigurationProvider.Load().AutomaticMatching;
+  private PluginConfiguration PluginConfiguration => _pluginConfigurationProvider.Load();
 
   public void Dispose()
   {
     _videoReleaseService.SearchCompleted -= OnSearchCompleted;
     _videoReleaseService.ReleaseSaved -= OnReleaseSaved;
     _videoService.VideoFileDeleted -= OnVideoFileDeleted;
-    _anidbService.AvdumpEvent -= OnAvdumpEvent;
-    _metadataService.EpisodeUpdated -= OnEpisodeAdded;
+    _metadataService.EpisodeAdded -= OnEpisodeAdded;
 
     var sources = _cancellationTokens.Values.ToArray();
     _cancellationTokens.Clear();
@@ -85,42 +76,93 @@ public partial class ShokoEventSubscriber : IDisposable
     GC.SuppressFinalize(this);
   }
 
+  private async Task UseTransientServiceAsync<T>(Func<T, Task> action) where T : class
+  {
+    await using var asyncScope = _scopeFactory.CreateAsyncScope();
+    var service = asyncScope.ServiceProvider.GetRequiredService<T>();
+    await action(service).ConfigureAwait(false);
+  }
+
+  private void RunLoggedBackgroundTask(Task task, string operationName)
+  {
+    _ = task.ContinueWith(t =>
+    {
+      if (t.Exception is not null)
+        LogBackgroundTaskException(operationName, t.Exception);
+    }, TaskContinuationOptions.OnlyOnFaulted);
+  }
+
+  [LoggerMessage(LogLevel.Error, "An exception occurred while running a background task. (Operation={operationName})")]
+  partial void LogBackgroundTaskException(string operationName, Exception ex);
+
   [LoggerMessage(LogLevel.Debug,
     "Neither series nor episode is defined for a matched video. (VideoId={video}, Episodes={episodes}, Series={series})")]
   partial void LogNeitherSeriesNorEpisodeIsDefinedForAMatchedVideo(IVideo video, IReadOnlyList<IShokoEpisode> episodes,
     IReadOnlyList<IShokoSeries> series);
 
+  #region ProcessFeature
+
+  private async Task TryProcessRescanAttempt(IVideo video, int matchAttempts)
+  {
+    var cts = _cancellationTokens.GetOrAdd(video.ID, _ => new CancellationTokenSource());
+
+    // Subtract 30 seconds to try and preempt the AniDB UDP socket logging out
+    var waitTime = TimeSpan.FromMinutes(5) * Math.Pow(2, matchAttempts - 1) - TimeSpan.FromSeconds(30);
+    try
+    {
+      await Task.Delay(waitTime, cts.Token).ConfigureAwait(false);
+    }
+    catch (OperationCanceledException) when (cts.Token.IsCancellationRequested)
+    {
+      return;
+    }
+
+    await UseTransientServiceAsync<ShokoService>(ss => ss.RescanFile(video, matchAttempts)).ConfigureAwait(false);
+    if (_cancellationTokens.TryRemove(video.ID, out var newCts))
+      newCts.Dispose();
+  }
+
+  private async Task TryProcessNewWebhookMessage(IVideo video)
+  {
+    await UseTransientServiceAsync<DiscordService>(ds => ds.SendUnmatchedWebhook(video)).ConfigureAwait(false);
+  }
+
+  private async Task TryProcessUpdatedWebhookMessages(IList<IVideo> videos)
+  {
+    await UseTransientServiceAsync<DiscordService>(async ds =>
+    {
+      foreach (var video in videos)
+        await ds.PatchMatchedWebhook(video, video.Episodes[0], video.Series[0]).ConfigureAwait(false);
+    }).ConfigureAwait(false);
+  }
+
+  private async Task TryProcessUpdatedWebhookMessage(IVideo video)
+  {
+    await TryProcessUpdatedWebhookMessages([video]).ConfigureAwait(false);
+  }
+
+  #endregion
+
   #region OnEvent
 
   private void OnSearchCompleted(object? sender, VideoReleaseSearchCompletedEventArgs args)
   {
-    if (args.IsSuccessful || args.AttemptedProviders.All(rp => rp.Name != "AniDB")) return;
-    if (args.Video.CrossReferences.Any(x => x.AnidbAnime is not null)) return;
-    if (args.Video.MediaInfo is null) return;
-
-    _ = HandleSearchCompleted(args);
+    RunLoggedBackgroundTask(HandleSearchCompleted(args), nameof(HandleSearchCompleted));
   }
 
   private void OnReleaseSaved(object? sender, VideoReleaseSavedEventArgs args)
   {
-    _ = HandleReleaseSaved(args);
-  }
-
-  private void OnAvdumpEvent(object? sender, AvdumpEventArgs args)
-  {
-    if (args.Type is not AVDumpEventType.Success || args.VideoIDs is not { Count: > 0 } ||
-        !WebhookEnabled) return;
-    _ = HandleAvDumpEvent(args);
+    RunLoggedBackgroundTask(HandleReleaseSaved(args), nameof(HandleReleaseSaved));
   }
 
   private void OnEpisodeAdded(object? sender, EpisodeInfoUpdatedEventArgs args)
   {
-    _ = HandleEpisodeAdded(args);
+    RunLoggedBackgroundTask(HandleEpisodeAdded(args), nameof(HandleEpisodeAdded));
   }
 
   private void OnVideoFileDeleted(object? sender, FileEventArgs args)
   {
-    _ = HandleVideoFileDeleted(args);
+    RunLoggedBackgroundTask(HandleVideoFileDeleted(args), nameof(HandleVideoFileDeleted));
   }
 
   #endregion
@@ -129,37 +171,29 @@ public partial class ShokoEventSubscriber : IDisposable
 
   private async Task HandleSearchCompleted(VideoReleaseSearchCompletedEventArgs args)
   {
-    var attempts = _videoReleaseService
+    if (args.IsSuccessful || args.AttemptedProviders.All(rp => rp.Name != "AniDB")) return;
+    if (args.Video.CrossReferences.Any(x => x.AnidbAnime is not null)) return;
+    if (args.Video.MediaInfo is null) return;
+
+    // For as long as this plugin's core focus is matching against AniDB... This is the only provider we care for here.
+    var matchAttempts = _videoReleaseService
       .GetReleaseMatchAttemptsForVideo(args.Video)
       .Count(ma => ma.AttemptedProviderNames.Contains("AniDB"));
 
-    if (attempts == 1)
+    if (matchAttempts == 1)
     {
       await _cachedData.SaveTrackedFileAsync(args.Video.ID).ConfigureAwait(false);
-      await _shokoService.DumpFile(args.Video).ConfigureAwait(false);
+
+      if (PluginConfiguration.AutomaticDumping.Enabled)
+        await UseTransientServiceAsync<ShokoService>(ss => ss.DumpFile(args.Video)).ConfigureAwait(false);
+
+      if (PluginConfiguration.Webhook.Enabled)
+        await TryProcessNewWebhookMessage(args.Video).ConfigureAwait(false);
     }
 
-    if (
-      !AutoMatchConfiguration.Enabled ||
-      attempts > AutoMatchConfiguration.MaxAttempts
-    ) return;
-
-    var cts = _cancellationTokens.GetOrAdd(args.Video.ID, _ => new CancellationTokenSource());
-    try
-    {
-      // Subtract 30 seconds to try and preempt the UDP socket logging out
-      var waitTime = TimeSpan.FromMinutes(5) * Math.Pow(2, attempts - 1) - TimeSpan.FromSeconds(30);
-      await Task.Delay(waitTime, cts.Token).ConfigureAwait(false);
-    }
-    catch (OperationCanceledException) when (cts.Token.IsCancellationRequested)
-    {
-      return;
-    }
-
-    await _shokoService.RescanFile(args.Video, attempts).ConfigureAwait(false);
-
-    if (_cancellationTokens.TryRemove(args.Video.ID, out var newCts))
-      newCts.Dispose();
+    if (PluginConfiguration.AutomaticMatching.Enabled &&
+        matchAttempts <= PluginConfiguration.AutomaticMatching.MaxAttempts)
+      await TryProcessRescanAttempt(args.Video, matchAttempts).ConfigureAwait(false);
   }
 
   private async Task HandleReleaseSaved(VideoReleaseSavedEventArgs args)
@@ -172,16 +206,20 @@ public partial class ShokoEventSubscriber : IDisposable
       _cancellationTokens.TryRemove(args.Video.ID, out _);
     }
 
+    if (!PluginConfiguration.Webhook.Enabled)
+    {
+      await _cachedData.DeleteEntryAsync(args.Video.ID).ConfigureAwait(false);
+      return; // Early return as we only care for information if the webhook feature is enabled
+    }
+
     if (args.Video.Episodes.Count == 0 || args.Video.Series.Count == 0)
     {
       LogNeitherSeriesNorEpisodeIsDefinedForAMatchedVideo(args.Video, args.Video.Episodes, args.Video.Series);
-      return; // We'll pick this up with an EpisodeUpdated event.
+      return; // Avoid further operations now, we'll have to pick this up later in an EpisodeUpdated event
     }
 
-    using var scope = _scopeFactory.CreateScope();
-    var discord = scope.ServiceProvider.GetRequiredService<DiscordService>();
-    await discord.PatchMatchedWebhooks([args.Video], args.Video.Episodes[0], args.Video.Series[0])
-      .ConfigureAwait(false);
+    await TryProcessUpdatedWebhookMessage(args.Video).ConfigureAwait(false);
+    await _cachedData.DeleteEntryAsync(args.Video.ID).ConfigureAwait(false);
   }
 
   private async Task HandleEpisodeAdded(EpisodeInfoUpdatedEventArgs args)
@@ -202,18 +240,10 @@ public partial class ShokoEventSubscriber : IDisposable
 
     if (trackedVideos.Count == 0) return;
 
-    using var scope = _scopeFactory.CreateScope();
-    var discord = scope.ServiceProvider.GetRequiredService<DiscordService>();
+    if (PluginConfiguration.Webhook.Enabled)
+      await TryProcessUpdatedWebhookMessages(trackedVideos).ConfigureAwait(false);
 
-    // N.B. We may not have a ShokoSeries or ShokoEpisode at this point! (When the series is first created/imported)
-    await discord.PatchMatchedWebhooks(trackedVideos, episode, series).ConfigureAwait(false);
-  }
-
-  private async Task HandleAvDumpEvent(AvdumpEventArgs args)
-  {
-    using var scope = _scopeFactory.CreateScope();
-    var discord = scope.ServiceProvider.GetRequiredService<DiscordService>();
-    await discord.SendUnmatchedWebhooks(args.VideoIDs).ConfigureAwait(false);
+    await _cachedData.DeleteEntriesAsync(episode.VideoList.Select(v => v.ID)).ConfigureAwait(false);
   }
 
   private async Task HandleVideoFileDeleted(FileEventArgs args)

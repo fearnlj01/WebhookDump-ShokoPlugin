@@ -27,43 +27,21 @@ public partial class DiscordService(
 
   private static string CrcMismatchColor => "#D85311";
 
-  public async Task SendUnmatchedWebhooks(IReadOnlyCollection<int>? videoIds)
+  public async Task PatchMatchedWebhook(IVideo video, IEpisode episode, ISeries series)
   {
-    if (videoIds == null) return;
-    foreach (var videoId in videoIds)
-    {
-      if (!await cachedData.IsFileTrackedAsync(videoId).ConfigureAwait(false)) continue;
+    var currentMessageState = await cachedData.GetMessageStateAsync(video.ID).ConfigureAwait(false);
+    if (currentMessageState is null) return;
 
-      var video = shoko.GetVideoFromId(videoId);
-      if (video is not null)
-        await SendUnmatchedWebhook(video).ConfigureAwait(false);
-    }
-  }
-
-  public async Task PatchMatchedWebhooks(ICollection<IVideo> videos, IEpisode episode, ISeries series)
-  {
-    foreach (var video in videos)
-    {
-      var messageState = await cachedData.GetMessageStateAsync(video.ID).ConfigureAwait(false);
-      if (messageState is null) continue;
-
-      await PatchMatchedWebhook(messageState, video, episode, series).ConfigureAwait(false);
-    }
-  }
-
-  private async Task PatchMatchedWebhook(MinimalMessageState messageState, IVideo video, IEpisode episode,
-    ISeries series)
-  {
     var posterStream = series.DefaultPoster?.GetStream();
-
     var message = CreateMatchedWebhook(video, episode, series, posterStream != null);
 
-    await discord.PatchWebhook(messageState.Id, message, posterStream).ConfigureAwait(false);
-    await cachedData.DeleteEntryAsync(video.ID).ConfigureAwait(false);
+    await discord.PatchWebhook(currentMessageState.Id, message, posterStream).ConfigureAwait(false);
   }
 
-  private async Task SendUnmatchedWebhook(IVideo video)
+  public async Task SendUnmatchedWebhook(IVideo video)
   {
+    if (!await cachedData.IsFileTrackedAsync(video.ID).ConfigureAwait(false)) return;
+
     var message = CreateUnmatchedWebhookMessage(video);
     if (message is null) return;
 

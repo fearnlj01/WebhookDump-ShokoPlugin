@@ -81,6 +81,13 @@ public partial class ShokoService(
     return [.. query.Take(3)];
   }
 
+  public int GetVideoAnidbMatchAttemptCount(IVideo video)
+  {
+    return videoReleaseService
+      .GetReleaseMatchAttemptsForVideo(video)
+      .Count(ma => ma.AttemptedProviderNames.Contains("AniDB"));
+  }
+
   [LoggerMessage(LogLevel.Information, "Rescanning file (FileId={id},Attempt={attempts})")]
   static partial void LogRescanningFile(ILogger<ShokoService> logger, int id, int attempts);
 
