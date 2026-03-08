@@ -22,7 +22,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: 'WebhookDump'
+          name: WebhookDump.dll
           archive: false
           path: WebhookDump/bin/Release/net10.0/publish/WebhookDump.dll
 
@@ -33,9 +33,9 @@ jobs:
 
     steps:
       - name: Download artifacts
-        uses: actions/download-artifacts@v8
+        uses: actions/download-artifact@v8
         with:
-          name: WebhookDump
+          name: WebhookDump.dll
           path: release-assets
       - name: Create prerelease
         uses: softprops/action-gh-release@v2
