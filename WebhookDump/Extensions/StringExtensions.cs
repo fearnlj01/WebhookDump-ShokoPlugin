@@ -4,13 +4,12 @@ namespace Shoko.Plugin.WebhookDump.Extensions;
 
 public static partial class StringExtensions
 {
-  // [GeneratedRegex(@"^((\[.*?\]\s*)*)(?<SeriesName>.+(?= - ))(.*)$", RegexOptions.Compiled)]
   [GeneratedRegex(@"^(?:\[[^\]]+\]\s*)?" + // Skip Group tags
                   "(?<SeriesName>.+?)" + // Lazily captures the series title until the following 'break' criteria is matched
                   "(?:" +
                   @"\s+-\s+(?=\d|[Ss]\d{2}[Ee]\d{2,4})" + // " - 0" || " - S01E01"
                   "|" +
-                  @"(?!.*\s+-\s+(?=\d))[\. ](?:19|20)\d{2}" + // "2026" | "1999" (But not if there is a " - " AFTER the year)
+                  @"(?!.*\s+-\s+(?=\d))[\. ](?:19|20)\d{2}" + // "2026" | "1999" (But not if " - " is found straight AFTER the year)
                   "|" +
                   @"[\. ][Ss]\d{2}[Ee]\d{2,4}" + // " S01E01" | ".S01E9999"
                   "|" +

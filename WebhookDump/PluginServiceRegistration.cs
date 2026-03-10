@@ -5,6 +5,7 @@ using Shoko.Plugin.WebhookDump.Persistence;
 using Shoko.Plugin.WebhookDump.Services;
 using Shoko.Plugin.WebhookDump.Services.Background;
 using Shoko.Plugin.WebhookDump.Services.Events;
+using Shoko.Plugin.WebhookDump.Services.HostedServices;
 
 namespace Shoko.Plugin.WebhookDump;
 
@@ -22,6 +23,7 @@ public class PluginServiceRegistration : IPluginServiceRegistration
 
     serviceCollection
       .AddHostedService<PluginStartupService>()
+      .AddHostedService<LegacyConfigurationMigratorService>()
       .AddHostedService<DatabaseCleanupService>()
       .AddHostedService<ReactionWatchService>();
 

@@ -14,7 +14,7 @@ using Shoko.Plugin.WebhookDump.Services.Events;
 using LogLevel = Microsoft.Extensions.Logging.LogLevel;
 using NLogLevel = NLog.LogLevel;
 
-namespace Shoko.Plugin.WebhookDump.Services;
+namespace Shoko.Plugin.WebhookDump.Services.HostedServices;
 
 public partial class PluginStartupService(
   IApplicationPaths applicationPaths,
