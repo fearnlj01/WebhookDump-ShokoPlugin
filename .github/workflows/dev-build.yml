@@ -3,6 +3,10 @@ on:
   push:
     branches:
       - dev
+
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Build
