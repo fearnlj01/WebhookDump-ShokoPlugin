@@ -12,14 +12,18 @@ public partial class DatabaseCleanupService(ICachedData cachedData, ILogger<Data
 
   protected override async Task ExecuteAsync(CancellationToken stoppingToken)
   {
-    while (!stoppingToken.IsCancellationRequested)
+    using var timer = new PeriodicTimer(Interval);
+    do
     {
       LogCleanupStarted(logger);
       await cachedData.CleanupOldEntriesAsync(CleanupInterval).WaitAsync(stoppingToken).ConfigureAwait(false);
-      await Task.Delay(Interval, stoppingToken).ConfigureAwait(false);
-    }
+      LogCleanupFinished(logger);
+    } while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false));
   }
 
   [LoggerMessage(LogLevel.Trace, Message = "Database cleanup started.")]
   static partial void LogCleanupStarted(ILogger logger);
+
+  [LoggerMessage(LogLevel.Trace, Message = "Database cleanup finished.")]
+  static partial void LogCleanupFinished(ILogger logger);
 }

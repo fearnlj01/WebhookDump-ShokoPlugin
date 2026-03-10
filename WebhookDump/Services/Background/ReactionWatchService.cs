@@ -26,20 +26,11 @@ public partial class ReactionWatchService(
 
   protected override async Task ExecuteAsync(CancellationToken stoppingToken)
   {
-    while (!stoppingToken.IsCancellationRequested)
+    using var timer = new PeriodicTimer(Interval);
+    do
     {
-      try
-      {
-        await Task.Delay(Interval, stoppingToken).ConfigureAwait(false);
-      }
-      catch (OperationCanceledException)
-      {
-        return;
-      }
-
-      if (AttemptAutoMatch)
-        await CheckMessages().ConfigureAwait(false);
-    }
+      if (AttemptAutoMatch) await CheckMessages().ConfigureAwait(false);
+    } while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false));
   }
 
   private async Task CheckMessages()
