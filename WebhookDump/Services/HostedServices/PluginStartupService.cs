@@ -29,7 +29,8 @@ public partial class PluginStartupService(
 {
   // Included for the sake of initialization & suppressing warnings.
   private readonly ShokoEventSubscriber _shokoEventSubscriber = shokoEventSubscriber;
-  private int _init;
+  private readonly TaskCompletionSource _startupTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+  private Task? _startupTask;
 
   private static string PluginNamespace => typeof(Plugin).Namespace ?? string.Empty;
 
@@ -37,27 +38,45 @@ public partial class PluginStartupService(
   {
     LogPluginWaitingForStart(logger);
     systemService.AboutToStart += OnServerAboutToStart;
+    _startupTask = InitPluginAsync(cancellationToken);
     return Task.CompletedTask;
   }
 
   public Task StopAsync(CancellationToken cancellationToken)
   {
+    systemService.AboutToStart -= OnServerAboutToStart;
     return Task.CompletedTask;
   }
 
   private void OnServerAboutToStart(object? sender, ServerAboutToStartEventArgs e)
   {
-    if (Interlocked.Exchange(ref _init, 1) == 1) return;
     systemService.AboutToStart -= OnServerAboutToStart;
+    _startupTcs.TrySetResult();
+  }
 
-    InitDatabase();
-    SuppressHttpClientLoggingNLog();
+  private async Task InitPluginAsync(CancellationToken cancellationToken)
+  {
+    try
+    {
+      await _startupTcs.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+      InitDatabase();
+      SuppressHttpClientLoggingNLog();
 
-    shokoService.InitializeAsync().ContinueWith(
-      task => LogUnableToInitException(logger, typeof(Plugin).FullName!, task.Exception?.Message),
-      TaskContinuationOptions.OnlyOnFaulted);
+      try
+      {
+        await shokoService.InitializeAsync().ConfigureAwait(false);
+      }
+      catch (Exception ex)
+      {
+        LogUnableToInitException(logger, ex, typeof(Plugin).FullName!);
+      }
 
-    LogStartupComplete(logger);
+      LogStartupComplete(logger);
+    }
+    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+    {
+      LogStartupAborted(logger);
+    }
   }
 
   private void InitDatabase()
@@ -79,7 +98,7 @@ public partial class PluginStartupService(
           ? configuredPath
           : Path.Combine(pluginConfigDirectory, configuredPath); // Prevents bad user behaviour making the plugin sad
 
-      Directory.CreateDirectory(Path.GetDirectoryName(dbPath) ?? defaultDbPath);
+      Directory.CreateDirectory(Path.GetDirectoryName(dbPath) ?? pluginConfigDirectory);
 
       if (!cachedDataProxy.TrySetDatabase(new CachedData(dbPath, cachedDataLogger)))
         LogReinitAttempt(logger, PluginNamespace);
@@ -140,9 +159,8 @@ public partial class PluginStartupService(
   [LoggerMessage(LogLevel.Error, "Unable to correctly init the {pluginName} plugin!")]
   static partial void LogUnableToInit(ILogger<PluginStartupService> logger, string pluginName);
 
-  [LoggerMessage(LogLevel.Error, "Unable to correctly init the {pluginName} plugin! Exception: {ExceptionMessage}")]
-  static partial void LogUnableToInitException(ILogger<PluginStartupService> logger, string pluginName,
-    string? exceptionMessage);
+  [LoggerMessage(LogLevel.Error, "Unable to correctly init the {pluginName} plugin!")]
+  static partial void LogUnableToInitException(ILogger<PluginStartupService> logger, Exception ex, string pluginName);
 
   [LoggerMessage(LogLevel.Warning,
     "The {pluginName} plugin has already initialized its database, ignoring re-init request.")]
@@ -150,6 +168,9 @@ public partial class PluginStartupService(
 
   [LoggerMessage(LogLevel.Trace, "Plugin startup complete")]
   static partial void LogStartupComplete(ILogger<PluginStartupService> logger);
+
+  [LoggerMessage(LogLevel.Trace, "Server startup aborted, Plugin startup halting.")]
+  static partial void LogStartupAborted(ILogger<PluginStartupService> logger);
 
   #endregion
 }

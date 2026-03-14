@@ -92,15 +92,6 @@ public partial class ShokoEventSubscriber : IDisposable
     }, TaskContinuationOptions.OnlyOnFaulted);
   }
 
-  [LoggerMessage(LogLevel.Error, "An exception occurred while running a background task. (Operation={operationName})")]
-  static partial void LogBackgroundTaskException(ILogger<ShokoEventSubscriber> logger, string operationName,
-    Exception ex);
-
-  [LoggerMessage(LogLevel.Debug,
-    "Neither series nor episode is defined for a matched video. (VideoId={video}, Episodes={episodes}, Series={series})")]
-  partial void LogNeitherSeriesNorEpisodeIsDefinedForAMatchedVideo(IVideo video, IReadOnlyList<IShokoEpisode> episodes,
-    IReadOnlyList<IShokoSeries> series);
-
   #region ProcessFeature
 
   private async Task TryProcessRescanAttempt(IVideo video, int matchAttempts)
@@ -112,15 +103,16 @@ public partial class ShokoEventSubscriber : IDisposable
     try
     {
       await Task.Delay(waitTime, cts.Token).ConfigureAwait(false);
+      await UseTransientServiceAsync<ShokoService>(ss => ss.RescanFile(video, matchAttempts)).ConfigureAwait(false);
     }
     catch (OperationCanceledException) when (cts.Token.IsCancellationRequested)
     {
-      return;
     }
-
-    await UseTransientServiceAsync<ShokoService>(ss => ss.RescanFile(video, matchAttempts)).ConfigureAwait(false);
-    if (_cancellationTokens.TryRemove(video.ID, out var newCts))
-      newCts.Dispose();
+    finally
+    {
+      if (_cancellationTokens.TryRemove(video.ID, out var newCts) && ReferenceEquals(cts, newCts))
+        newCts.Dispose();
+    }
   }
 
   private async Task TryProcessNewWebhookMessage(IVideo video)
@@ -201,10 +193,10 @@ public partial class ShokoEventSubscriber : IDisposable
   {
     if (!await _cachedData.IsFileTrackedAsync(args.Video.ID).ConfigureAwait(false)) return;
 
-    if (_cancellationTokens.TryGetValue(args.Video.ID, out var cts))
+    if (_cancellationTokens.TryRemove(args.Video.ID, out var cts))
     {
       await cts.CancelAsync().ConfigureAwait(false);
-      _cancellationTokens.TryRemove(args.Video.ID, out _);
+      cts.Dispose();
     }
 
     if (!PluginConfiguration.Webhook.Enabled)
@@ -215,7 +207,7 @@ public partial class ShokoEventSubscriber : IDisposable
 
     if (args.Video.Episodes.Count == 0 || args.Video.Series.Count == 0)
     {
-      LogNeitherSeriesNorEpisodeIsDefinedForAMatchedVideo(args.Video, args.Video.Episodes, args.Video.Series);
+      LogVideoMatchedButNoSeriesOrEpisode(args.Video, args.Video.Episodes, args.Video.Series);
       return; // Avoid further operations now, we'll have to pick this up later in an EpisodeUpdated event
     }
 
@@ -244,7 +236,7 @@ public partial class ShokoEventSubscriber : IDisposable
     if (PluginConfiguration.Webhook.Enabled)
       await TryProcessUpdatedWebhookMessages(trackedVideos).ConfigureAwait(false);
 
-    await _cachedData.DeleteEntriesAsync(episode.VideoList.Select(v => v.ID)).ConfigureAwait(false);
+    await _cachedData.DeleteEntriesAsync(trackedVideos.Select(v => v.ID)).ConfigureAwait(false);
   }
 
   private async Task HandleVideoFileDeleted(FileEventArgs args)
@@ -253,4 +245,17 @@ public partial class ShokoEventSubscriber : IDisposable
   }
 
   #endregion HandleEvent
+
+  #region LoggerMessages
+
+  [LoggerMessage(LogLevel.Error, "An exception occurred while running a background task. (Operation={operationName})")]
+  static partial void LogBackgroundTaskException(ILogger<ShokoEventSubscriber> logger, string operationName,
+    Exception ex);
+
+  [LoggerMessage(LogLevel.Debug,
+    "Neither series nor episode is defined for a matched video. (VideoId={video}, Episodes={episodes}, Series={series})")]
+  partial void LogVideoMatchedButNoSeriesOrEpisode(IVideo video, IReadOnlyList<IShokoEpisode> episodes,
+    IReadOnlyList<IShokoSeries> series);
+
+  #endregion
 }
