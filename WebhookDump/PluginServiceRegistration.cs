@@ -11,7 +11,7 @@ namespace Shoko.Plugin.WebhookDump;
 
 public class PluginServiceRegistration : IPluginServiceRegistration
 {
-  public void RegisterServices(IServiceCollection serviceCollection, IApplicationPaths applicationPaths)
+  public static void RegisterServices(IServiceCollection serviceCollection, IApplicationPaths applicationPaths)
   {
     serviceCollection
       .AddHttpClient<DiscordClient>();
