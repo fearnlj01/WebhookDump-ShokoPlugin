@@ -1,6 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <Version>2.0.1</Version>
+    <Title>WebhookDump</Title>
+    <Authors>fearnlj01</Authors>
+    <RepositoryUrl>https://github.com/fearnlj01/WebhookDump-ShokoPlugin/</RepositoryUrl>
+    <PackageLicenseUrl>https://github.com/fearnlj01/WebhookDump-ShokoPlugin/blob/master/LICENSE</PackageLicenseUrl>
+  </PropertyGroup>
+
+  <PropertyGroup>
     <OutputType>Library</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <RuntimeIdentifiers>win-x64;win;linux-x64;linux-x86</RuntimeIdentifiers>
@@ -16,22 +24,15 @@
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
     <LangVersion>latest</LangVersion>
     <RootNamespace>Shoko.Plugin.WebhookDump</RootNamespace>
-    <Version>2.0.0</Version>
-    <Authors>fearnlj01</Authors>
-    <AssemblyVersion>2.0.0</AssemblyVersion>
-    <FileVersion>2.0.0</FileVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>true</ImplicitUsings>
-    <Title>WebhookDump</Title>
-    <PackageLicenseUrl>https://raw.githubusercontent.com/fearnlj01/WebhookDump-ShokoPlugin/refs/heads/master/LICENSE</PackageLicenseUrl>
-    <RepositoryUrl>https://github.com/fearnlj01/WebhookDump-ShokoPlugin/</RepositoryUrl>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.3" PrivateAssets="All"/>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.3" PrivateAssets="All"/>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.3" PrivateAssets="All"/>
-    <PackageReference Include="Shoko.Abstractions" Version="6.0.0-alpha.11" PrivateAssets="All" />
+    <PackageReference Include="Shoko.Abstractions" Version="6.0.0-alpha.12" PrivateAssets="All"/>
     <PackageReference Include="NLog" Version="6.1.0" PrivateAssets="All"/>
   </ItemGroup>
 
