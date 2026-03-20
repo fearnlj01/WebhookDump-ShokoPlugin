@@ -1,0 +1,29 @@
+﻿name: Release
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  release:
+    name: Build and create release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.x'
+
+      - name: Build plugin
+        run: dotnet publish -c Release -f net10.0 WebhookDump/WebhookDump.csproj
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: 'WebhookDump Release'
+          generate_release_notes: true
+          files: WebhookDump/bin/Release/net10.0/publish/WebhookDump.dll
