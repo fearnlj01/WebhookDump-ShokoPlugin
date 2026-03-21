@@ -42,8 +42,8 @@
       <StdErrRedirLocation>NUL</StdErrRedirLocation>
     </PropertyGroup>
     <PropertyGroup Condition="$(OS) != 'Windows_NT'">
-      <GitDateFormat>%%aI</GitDateFormat>
-      <StdErrRedirLocation>NUL</StdErrRedirLocation>
+      <GitDateFormat>%aI</GitDateFormat>
+      <StdErrRedirLocation>/dev/null</StdErrRedirLocation>
     </PropertyGroup>
 
     <Exec Command="git log -1 --format=$(GitDateFormat)" ConsoleToMsBuild="true">
