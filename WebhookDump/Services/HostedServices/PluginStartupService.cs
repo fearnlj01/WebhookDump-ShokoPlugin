@@ -127,13 +127,7 @@ public partial class PluginStartupService(
         config.AddTarget(nullTarget);
       }
 
-      var patterns = new[]
-      {
-        // AniDB logging is not the domain of this plugin but is enabled by virtue of the plugins actions :(
-        "System.Net.Http.HttpClient.AniDB.*",
-        "System.Net.Http.HttpClient.DiscordClient.*",
-        "Microsoft.Extensions.Http.DefaultHttpClientFactory"
-      };
+      var patterns = new[] { "System.Net.Http.HttpClient.DiscordClient.*" };
 
       foreach (var pattern in patterns)
       {

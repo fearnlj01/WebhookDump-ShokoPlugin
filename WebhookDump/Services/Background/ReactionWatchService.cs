@@ -43,7 +43,7 @@ public partial class ReactionWatchService(
     LogCheckingMessageCount(logger, messages.Count);
 
     using var scope = scopeFactory.CreateScope();
-    var discordClient = scope.ServiceProvider.GetRequiredService<DiscordClient>();
+    using var discordClient = scope.ServiceProvider.GetRequiredService<DiscordClient>();
     var shokoService = scope.ServiceProvider.GetRequiredService<ShokoService>();
 
     foreach (var (videoId, messageState) in messages)
