@@ -14,7 +14,11 @@ public class PluginServiceRegistration : IPluginServiceRegistration
   public static void RegisterServices(IServiceCollection serviceCollection, IApplicationPaths applicationPaths)
   {
     serviceCollection
-      .AddHttpClient<DiscordClient>();
+      .AddHttpClient<DiscordClient>()
+      .RemoveAllLoggers()
+      .SetHandlerLifetime(Timeout.InfiniteTimeSpan)
+      .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+        { PooledConnectionLifetime = TimeSpan.FromMinutes(2) });
 
     serviceCollection
       .AddSingleton<ICachedDataProxy, CachedDataProxy>()

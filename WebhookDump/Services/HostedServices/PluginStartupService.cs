@@ -1,8 +1,5 @@
 ﻿using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using NLog;
-using NLog.Config;
-using NLog.Targets;
 using Shoko.Abstractions.Config;
 using Shoko.Abstractions.Core.Events;
 using Shoko.Abstractions.Core.Services;
@@ -12,7 +9,6 @@ using Shoko.Plugin.WebhookDump.Configurations;
 using Shoko.Plugin.WebhookDump.Persistence;
 using Shoko.Plugin.WebhookDump.Services.Events;
 using LogLevel = Microsoft.Extensions.Logging.LogLevel;
-using NLogLevel = NLog.LogLevel;
 
 namespace Shoko.Plugin.WebhookDump.Services.HostedServices;
 
@@ -60,7 +56,6 @@ public partial class PluginStartupService(
     {
       await _startupTcs.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
       InitDatabase();
-      SuppressHttpClientLoggingNLog();
 
       try
       {
@@ -107,41 +102,6 @@ public partial class PluginStartupService(
     {
       LogUnableToInit(logger, PluginNamespace);
       cachedDataProxy.TrySetException(ex);
-    }
-  }
-
-  private static void SuppressHttpClientLoggingNLog()
-  {
-    try
-    {
-      var config = LogManager.Configuration;
-      if (config is null) return;
-
-      const string ruleMarker = "WebhookDump.DropHttpClientFactoryLogging";
-      if (config.Variables.ContainsKey(ruleMarker)) return;
-
-      const string nullTargetName = "WebhookDump_Null";
-      if (config.FindTargetByName(nullTargetName) is not NullTarget nullTarget)
-      {
-        nullTarget = new NullTarget { Name = nullTargetName };
-        config.AddTarget(nullTarget);
-      }
-
-      var patterns = new[] { "System.Net.Http.HttpClient.DiscordClient.*" };
-
-      foreach (var pattern in patterns)
-      {
-        var rule = new LoggingRule(pattern, NLogLevel.Trace, NLogLevel.Warn, nullTarget) { Final = true };
-        config.LoggingRules.Insert(0, rule);
-      }
-
-      config.Variables[ruleMarker] = "true";
-      LogManager.Configuration = config;
-      LogManager.ReconfigExistingLoggers();
-    }
-    catch
-    {
-      // Logging suppression is "best effort" only.
     }
   }
 
