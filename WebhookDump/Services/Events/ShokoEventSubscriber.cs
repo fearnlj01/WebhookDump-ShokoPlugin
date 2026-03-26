@@ -2,10 +2,12 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Shoko.Abstractions.Config;
-using Shoko.Abstractions.Events;
+using Shoko.Abstractions.Metadata.Events;
+using Shoko.Abstractions.Metadata.Services;
 using Shoko.Abstractions.Metadata.Shoko;
-using Shoko.Abstractions.Services;
 using Shoko.Abstractions.Video;
+using Shoko.Abstractions.Video.Events;
+using Shoko.Abstractions.Video.Services;
 using Shoko.Plugin.WebhookDump.Configurations;
 using Shoko.Plugin.WebhookDump.Persistence;
 
@@ -153,7 +155,7 @@ public partial class ShokoEventSubscriber : IDisposable
     RunLoggedBackgroundTask(HandleEpisodeAdded(args), nameof(HandleEpisodeAdded));
   }
 
-  private void OnVideoFileDeleted(object? sender, FileEventArgs args)
+  private void OnVideoFileDeleted(object? sender, VideoFileEventArgs args)
   {
     RunLoggedBackgroundTask(HandleVideoFileDeleted(args), nameof(HandleVideoFileDeleted));
   }
@@ -239,7 +241,7 @@ public partial class ShokoEventSubscriber : IDisposable
     await _cachedData.DeleteEntriesAsync(trackedVideos.Select(v => v.ID)).ConfigureAwait(false);
   }
 
-  private async Task HandleVideoFileDeleted(FileEventArgs args)
+  private async Task HandleVideoFileDeleted(VideoFileEventArgs args)
   {
     await _cachedData.DeleteEntryAsync(args.Video.ID).ConfigureAwait(false);
   }

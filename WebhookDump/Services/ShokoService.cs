@@ -1,8 +1,9 @@
 ﻿using Microsoft.Extensions.Logging;
 using Shoko.Abstractions.Config;
 using Shoko.Abstractions.Metadata.Anidb;
-using Shoko.Abstractions.Services;
+using Shoko.Abstractions.Metadata.Anidb.Services;
 using Shoko.Abstractions.Video;
+using Shoko.Abstractions.Video.Services;
 using Shoko.Plugin.WebhookDump.Configurations;
 using Shoko.Plugin.WebhookDump.Configurations.Webhook;
 using Shoko.Plugin.WebhookDump.Exceptions;
@@ -14,6 +15,7 @@ namespace Shoko.Plugin.WebhookDump.Services;
 public partial class ShokoService(
   ICachedData fileCachedData,
   IAnidbService anidbService,
+  IAnidbAvdumpService anidbAvdumpService,
   IVideoService videoService,
   IVideoHashingService videoHashingService,
   IVideoReleaseService videoReleaseService,
@@ -44,7 +46,7 @@ public partial class ShokoService(
   public async Task DumpFile(IVideo video)
   {
     LogAvdumpScheduled(logger, video.ID);
-    await anidbService.ScheduleAvdumpVideos(video).ConfigureAwait(false);
+    await anidbAvdumpService.ScheduleAvdumpVideos(video).ConfigureAwait(false);
   }
 
   public async Task RescanFile(IVideo video, int matchAttempts = 1)
@@ -65,7 +67,7 @@ public partial class ShokoService(
   {
     var title = video.EarliestKnownName.ExtractFileTitle();
     LogSearchingForTitle(logger, title);
-    var searchResult = anidbService.Search(title, true);
+    var searchResult = anidbService.SearchAnime(title, true);
     if (searchResult is not { Count: > 0 }) return searchResult;
 
     if (!RestrictionSettings.PostIfTopMatchRestricted && searchResult[0].IsRestricted)

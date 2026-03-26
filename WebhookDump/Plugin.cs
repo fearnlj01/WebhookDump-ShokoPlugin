@@ -9,8 +9,5 @@ public class Plugin : IPlugin
   public string Name => "WebhookDump";
 
   public string Description =>
-    """
-      Automatically AVDumps unrecognised files,
-      optionally sending a notification to Discord via a webhook.
-    """;
+    "Automatically AVDumps unrecognised files, optionally sending a notification to Discord via a webhook.";
 }

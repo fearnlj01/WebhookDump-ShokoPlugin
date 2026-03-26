@@ -6,9 +6,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Shoko.Abstractions.Config;
-using Shoko.Abstractions.Enums;
-using Shoko.Abstractions.Events;
-using Shoko.Abstractions.Services;
+using Shoko.Abstractions.Connectivity.Enums;
+using Shoko.Abstractions.Connectivity.Events;
+using Shoko.Abstractions.Connectivity.Services;
 using Shoko.Plugin.WebhookDump.Configurations;
 using Shoko.Plugin.WebhookDump.Discord.Models;
 
