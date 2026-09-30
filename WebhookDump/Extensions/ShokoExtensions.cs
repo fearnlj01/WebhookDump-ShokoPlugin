@@ -42,6 +42,6 @@ public static class ShokoExtensions
 
     public bool IsRestricted => anime.AnidbAnime?.Restricted ?? anime.ShokoSeries?.Restricted ?? false;
 
-    public DateTime? AirDate => anime.AnidbAnime?.AirDate ?? anime.ShokoSeries?.AirDate;
+    public DateTime? AirDate => (anime.AnidbAnime?.AirDate ?? anime.ShokoSeries?.AirDate)?.ToDateTime();
   }
 }

@@ -98,7 +98,7 @@ public partial class ShokoEventSubscriber : IDisposable
 
   private async Task TryProcessRescanAttempt(IVideo video, int matchAttempts)
   {
-    var cts = _cancellationTokens.GetOrAdd(video.ID, _ => new CancellationTokenSource());
+    var cts = _cancellationTokens.GetOrAdd(video.LocalID, _ => new CancellationTokenSource());
 
     // Subtract 30 seconds to try and preempt the AniDB UDP socket logging out
     var waitTime = TimeSpan.FromMinutes(5) * Math.Pow(2, matchAttempts - 1) - TimeSpan.FromSeconds(30);
@@ -112,7 +112,7 @@ public partial class ShokoEventSubscriber : IDisposable
     }
     finally
     {
-      if (_cancellationTokens.TryRemove(video.ID, out var newCts) && ReferenceEquals(cts, newCts))
+      if (_cancellationTokens.TryRemove(video.LocalID, out var newCts) && ReferenceEquals(cts, newCts))
         newCts.Dispose();
     }
   }
@@ -177,7 +177,7 @@ public partial class ShokoEventSubscriber : IDisposable
 
     if (matchAttempts == 1)
     {
-      await _cachedData.SaveTrackedFileAsync(args.Video.ID).ConfigureAwait(false);
+      await _cachedData.SaveTrackedFileAsync(args.Video.LocalID).ConfigureAwait(false);
 
       if (PluginConfiguration.AutomaticDumping.Enabled)
         await UseTransientServiceAsync<ShokoService>(ss => ss.DumpFile(args.Video)).ConfigureAwait(false);
@@ -193,9 +193,9 @@ public partial class ShokoEventSubscriber : IDisposable
 
   private async Task HandleReleaseSaved(VideoReleaseSavedEventArgs args)
   {
-    if (!await _cachedData.IsFileTrackedAsync(args.Video.ID).ConfigureAwait(false)) return;
+    if (!await _cachedData.IsFileTrackedAsync(args.Video.LocalID).ConfigureAwait(false)) return;
 
-    if (_cancellationTokens.TryRemove(args.Video.ID, out var cts))
+    if (_cancellationTokens.TryRemove(args.Video.LocalID, out var cts))
     {
       await cts.CancelAsync().ConfigureAwait(false);
       cts.Dispose();
@@ -203,7 +203,7 @@ public partial class ShokoEventSubscriber : IDisposable
 
     if (!PluginConfiguration.Webhook.Enabled)
     {
-      await _cachedData.DeleteEntryAsync(args.Video.ID).ConfigureAwait(false);
+      await _cachedData.DeleteEntryAsync(args.Video.LocalID).ConfigureAwait(false);
       return; // Early return as we only care for information if the webhook feature is enabled
     }
 
@@ -214,7 +214,7 @@ public partial class ShokoEventSubscriber : IDisposable
     }
 
     await TryProcessUpdatedWebhookMessage(args.Video).ConfigureAwait(false);
-    await _cachedData.DeleteEntryAsync(args.Video.ID).ConfigureAwait(false);
+    await _cachedData.DeleteEntryAsync(args.Video.LocalID).ConfigureAwait(false);
   }
 
   private async Task HandleEpisodeAdded(EpisodeInfoUpdatedEventArgs args)
@@ -223,14 +223,14 @@ public partial class ShokoEventSubscriber : IDisposable
     var series = args.SeriesInfo;
 
     var trackedVideoIds =
-      await _cachedData.GetTrackedFileIdsAsync(episode.VideoList.Select(v => v.ID)).ConfigureAwait(false);
+      await _cachedData.GetTrackedFileIdsAsync(episode.Videos.Select(v => v.LocalID)).ConfigureAwait(false);
 
     if (trackedVideoIds.Count == 0) return;
 
-    var trackedVideos = episode.VideoList
+    var trackedVideos = episode.Videos
       .Concat(series.Videos)
-      .Where(v => trackedVideoIds.Contains(v.ID))
-      .DistinctBy(v => v.ID)
+      .Where(v => trackedVideoIds.Contains(v.LocalID))
+      .DistinctBy(v => v.LocalID)
       .ToList();
 
     if (trackedVideos.Count == 0) return;
@@ -238,12 +238,12 @@ public partial class ShokoEventSubscriber : IDisposable
     if (PluginConfiguration.Webhook.Enabled)
       await TryProcessUpdatedWebhookMessages(trackedVideos).ConfigureAwait(false);
 
-    await _cachedData.DeleteEntriesAsync(trackedVideos.Select(v => v.ID)).ConfigureAwait(false);
+    await _cachedData.DeleteEntriesAsync(trackedVideos.Select(v => v.LocalID)).ConfigureAwait(false);
   }
 
   private async Task HandleVideoFileDeleted(VideoFileEventArgs args)
   {
-    await _cachedData.DeleteEntryAsync(args.Video.ID).ConfigureAwait(false);
+    await _cachedData.DeleteEntryAsync(args.Video.LocalID).ConfigureAwait(false);
   }
 
   #endregion HandleEvent

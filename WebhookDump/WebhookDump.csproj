@@ -29,10 +29,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.3" PrivateAssets="All"/>
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.3" PrivateAssets="All"/>
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.3" PrivateAssets="All"/>
-    <PackageReference Include="Shoko.Abstractions" Version="6.0.0-alpha.13" PrivateAssets="All"/>
+    <!-- The server already loads Entity Framework Core and its providers, so they are referenced for compiling only. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" ExcludeAssets="runtime;native" PrivateAssets="All"/>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.12" ExcludeAssets="runtime;native" PrivateAssets="All"/>
+    <PackageReference Include="Microting.EntityFrameworkCore.MySql" Version="10.0.11" ExcludeAssets="runtime" PrivateAssets="All"/>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" PrivateAssets="All"/>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" PrivateAssets="All"/>
+    <PackageReference Include="Shoko.Abstractions" Version="6.0.0-alpha.95" PrivateAssets="All"/>
   </ItemGroup>
 
   <Target Name="PluginAssemblyVersion" BeforeTargets="GetAssemblyVersion;GenerateAssemblyInfo" Condition="Exists('$(MSBuildProjectDirectory)/../.git') or Exists('$(MSBuildProjectDirectory)\..\.git')">

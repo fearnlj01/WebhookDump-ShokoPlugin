@@ -20,8 +20,8 @@ public class PluginConfiguration : IConfiguration
   [DefaultValue(null)]
   [Display(Name = "Alternative Plugin Database Path", Description =
     """
-    Full path to an alternative location for the plugins database.
-    The plugin's database will **not** be migrated on change.
+    Full path to where older versions of the plugin kept their database, if it was moved from its default location.
+    The plugin now keeps its data in the server's plugin database, and only reads this file once to carry its entries over.
     """
   )]
   public string? AlternativePluginDatabasePath { get; set; }

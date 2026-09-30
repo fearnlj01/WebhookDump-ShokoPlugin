@@ -20,7 +20,14 @@ public class PluginServiceRegistration : IPluginServiceRegistration
       .UseSocketsHttpHandler((handler, _) =>
         handler.PooledConnectionLifetime = TimeSpan.FromMinutes(2));
 
+    serviceCollection.AddPluginDbContext<Plugin, WebhookDumpDbContext>(WebhookDumpDbContext.DatabaseName, options =>
+      options
+        .WithMySqlMigrations<MySqlWebhookDumpDbContext>()
+        .WithSqlServerMigrations<SqlServerWebhookDumpDbContext>());
+
     serviceCollection
+      .AddSingleton<CachedData>()
+      .AddSingleton<LegacyDatabaseImporter>()
       .AddSingleton<ICachedDataProxy, CachedDataProxy>()
       .AddSingleton<ICachedData>(sp => sp.GetRequiredService<ICachedDataProxy>())
       .AddSingleton<ShokoEventSubscriber>();

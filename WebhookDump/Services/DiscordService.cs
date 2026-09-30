@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging;
 using Shoko.Abstractions.Config;
 using Shoko.Abstractions.Metadata;
+using Shoko.Abstractions.Metadata.Shoko;
 using Shoko.Abstractions.Video;
 using Shoko.Plugin.WebhookDump.Configurations;
 using Shoko.Plugin.WebhookDump.Discord.Client;
@@ -26,30 +27,30 @@ public partial class DiscordService(
 
   private static string CrcMismatchColor => "#D85311";
 
-  public async Task PatchMatchedWebhook(IVideo video, IEpisode episode, ISeries series)
+  public async Task PatchMatchedWebhook(IVideo video, IShokoEpisode episode, IShokoSeries series)
   {
-    LogAttemptingToUpdateWebhook(logger, video.ID, episode.ID, series.ID);
-    var messageState = await cachedData.GetMessageStateAsync(video.ID).ConfigureAwait(false);
+    LogAttemptingToUpdateWebhook(logger, video.LocalID, episode.LocalID, series.LocalID);
+    var messageState = await cachedData.GetMessageStateAsync(video.LocalID).ConfigureAwait(false);
     if (messageState is null) return;
 
-    var posterStream = series.DefaultPoster?.GetStream();
+    var posterStream = series.PrimaryImage?.GetStream();
     try
     {
       var message = CreateMatchedWebhook(video, episode, series, posterStream is not null);
 
       await discord.PatchWebhook(messageState.Id, message, posterStream).ConfigureAwait(false);
-      LogWebhookUpdated(logger, video.ID, episode.ID, series.ID, messageState.Id);
+      LogWebhookUpdated(logger, video.LocalID, episode.LocalID, series.LocalID, messageState.Id);
     }
     catch (CrossReferenceException ex)
     {
-      LogUnableToUpdateWebhookMessage(logger, video.ID, episode.ID, series.ID, messageState.Id, ex.Message);
+      LogUnableToUpdateWebhookMessage(logger, video.LocalID, episode.LocalID, series.LocalID, messageState.Id, ex.Message);
     }
   }
 
   public async Task SendUnmatchedWebhook(IVideo video)
   {
-    LogNewWebhookMessageAttempt(logger, video.ID);
-    if (!await cachedData.IsFileTrackedAsync(video.ID).ConfigureAwait(false)) return;
+    LogNewWebhookMessageAttempt(logger, video.LocalID);
+    if (!await cachedData.IsFileTrackedAsync(video.LocalID).ConfigureAwait(false)) return;
 
     var message = CreateUnmatchedWebhookMessage(video);
     if (message is null) return;
@@ -58,8 +59,8 @@ public partial class DiscordService(
 
     if (messageState is null) return;
 
-    LogNewWebhookMessageCreated(logger, video.ID, messageState.Id);
-    await cachedData.SaveMessageStateAsync(video.ID, messageState).ConfigureAwait(false);
+    LogNewWebhookMessageCreated(logger, video.LocalID, messageState.Id);
+    await cachedData.SaveMessageStateAsync(video.LocalID, messageState).ConfigureAwait(false);
   }
 
   private Message? CreateUnmatchedWebhookMessage(IVideo video)
@@ -72,13 +73,13 @@ public partial class DiscordService(
     try
     {
       var titles = shoko.SearchForTitles(video);
-      if (titles.Count == 0) LogNoLikelyTitlesFound(logger, video.ID);
+      if (titles.Count == 0) LogNoLikelyTitlesFound(logger, video.LocalID);
 
       foreach (var series in titles)
         embedBuilder.AddField(new Field
         {
           Name = "AniDB Link",
-          Value = $"[{series.Title}](https://anidb.net/anime/{series.AnidbAnime?.ID}/release/add)",
+          Value = $"[{series.Title}](https://anidb.net/anime/{series.AnidbID}/release/add)",
           Inline = true
         });
     }
@@ -92,7 +93,7 @@ public partial class DiscordService(
     if (!video.HasCrc32InFilename)
     {
       embedBuilder.SetColor(CrcMismatchColor);
-      LogCrcMismatch(logger, video.ID, crc, video.EarliestKnownName);
+      LogCrcMismatch(logger, video.LocalID, crc, video.EarliestKnownName);
     }
 
     var embed = embedBuilder.Build();
@@ -101,9 +102,9 @@ public partial class DiscordService(
 
   private Message CreateMatchedWebhook(IVideo video, IEpisode episode, ISeries series, bool includeThumbnail)
   {
-    if (series.CrossReferences.Count == 0)
+    if (series.VideoCrossReferences.Count == 0)
       throw new CrossReferenceException("Series has no cross references, cannot create matched webhook.");
-    if (episode.CrossReferences.Count == 0)
+    if (episode.VideoCrossReferences.Count == 0)
       throw new CrossReferenceException("Episode has no cross references, cannot create matched webhook.");
 
     var messageBuilder = GetBaseMessage(FileEventReason.Matched);
@@ -114,14 +115,14 @@ public partial class DiscordService(
         new Field
         {
           Name = "Anime",
-          Value = $"[{series.Title}](https://anidb.net/anime/{series.CrossReferences[0].AnidbAnimeID})",
+          Value = $"[{series.Title}](https://anidb.net/anime/{series.VideoCrossReferences[0].AnidbAnimeID})",
           Inline = true
         },
         new Field
         {
           Name = "Episode",
           Value =
-            $"{episode.EpisodeNumber} - [{episode.Title}](https://anidb.net/episode/{episode.CrossReferences[0].AnidbEpisodeID})",
+            $"{episode.EpisodeNumber} - [{episode.Title}](https://anidb.net/episode/{episode.VideoCrossReferences[0].AnidbEpisodeID})",
           Inline = true
         }
       ]);
@@ -161,7 +162,7 @@ public partial class DiscordService(
   {
     var sb = new StringBuilder();
 
-    sb.Append("File ID: ").Append(video.ID)
+    sb.Append("File ID: ").Append(video.LocalID)
       .Append(" | ").Append("CRC: ").Append(video.Crc32);
     if (!video.HasCrc32InFilename)
       sb.Append(" | ").Append("CRC not found in filename");

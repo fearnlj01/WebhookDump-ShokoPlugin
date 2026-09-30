@@ -16,9 +16,10 @@ public partial class PluginStartupService(
   IApplicationPaths applicationPaths,
   ISystemService systemService,
   ICachedDataProxy cachedDataProxy,
+  CachedData cachedData,
+  LegacyDatabaseImporter legacyDatabaseImporter,
   ConfigurationProvider<PluginConfiguration> pluginConfigurationProvider,
   ILogger<PluginStartupService> logger,
-  ILogger<CachedData> cachedDataLogger,
   ShokoEventSubscriber shokoEventSubscriber,
   ShokoService shokoService
 ) : IHostedService
@@ -54,8 +55,9 @@ public partial class PluginStartupService(
   {
     try
     {
+      // The server has migrated the plugin's database by the time it is about to start.
       await _startupTcs.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
-      InitDatabase();
+      await InitDatabaseAsync(cancellationToken).ConfigureAwait(false);
 
       try
       {
@@ -74,35 +76,41 @@ public partial class PluginStartupService(
     }
   }
 
-  private void InitDatabase()
+  private async Task InitDatabaseAsync(CancellationToken cancellationToken)
   {
     try
     {
-      var pluginConfig = pluginConfigurationProvider.Load();
-      var pluginConfigDirectory = Path.Combine(
-        applicationPaths.ConfigurationsPath,
-        UuidUtility.GetV5(typeof(Plugin).FullName!).ToString()
-      );
+      await legacyDatabaseImporter.ImportAsync(GetLegacyDatabasePath(), cancellationToken).ConfigureAwait(false);
 
-      var defaultDbPath = Path.Combine(pluginConfigDirectory, "WebhookDump.db");
-      var configuredPath = pluginConfig.AlternativePluginDatabasePath;
-
-      var dbPath = string.IsNullOrWhiteSpace(configuredPath)
-        ? defaultDbPath
-        : Path.IsPathRooted(configuredPath)
-          ? configuredPath
-          : Path.Combine(pluginConfigDirectory, configuredPath); // Prevents bad user behaviour making the plugin sad
-
-      Directory.CreateDirectory(Path.GetDirectoryName(dbPath) ?? pluginConfigDirectory);
-
-      if (!cachedDataProxy.TrySetDatabase(new CachedData(dbPath, cachedDataLogger)))
+      if (cachedDataProxy.TrySetDatabase(cachedData))
+        LogDatabaseReady(logger);
+      else
         LogReinitAttempt(logger, PluginNamespace);
     }
-    catch (Exception ex)
+    catch (Exception ex) when (ex is not OperationCanceledException)
     {
       LogUnableToInit(logger, PluginNamespace);
       cachedDataProxy.TrySetException(ex);
     }
+  }
+
+  // Where the plugin kept its own SQLite file before it moved to the server's plugin database.
+  private string GetLegacyDatabasePath()
+  {
+    var pluginConfig = pluginConfigurationProvider.Load();
+    var pluginConfigDirectory = Path.Combine(
+      applicationPaths.ConfigurationsPath,
+      UuidUtility.GetV5(typeof(Plugin).FullName!).ToString()
+    );
+
+    var defaultDbPath = Path.Combine(pluginConfigDirectory, "WebhookDump.db");
+    var configuredPath = pluginConfig.AlternativePluginDatabasePath;
+
+    return string.IsNullOrWhiteSpace(configuredPath)
+      ? defaultDbPath
+      : Path.IsPathRooted(configuredPath)
+        ? configuredPath
+        : Path.Combine(pluginConfigDirectory, configuredPath);
   }
 
   #region LoggerMessages
@@ -119,6 +127,9 @@ public partial class PluginStartupService(
   [LoggerMessage(LogLevel.Warning,
     "The {pluginName} plugin has already initialized its database, ignoring re-init request.")]
   static partial void LogReinitAttempt(ILogger<PluginStartupService> logger, string pluginName);
+
+  [LoggerMessage(LogLevel.Information, "Plugin database ready")]
+  static partial void LogDatabaseReady(ILogger<PluginStartupService> logger);
 
   [LoggerMessage(LogLevel.Trace, "Plugin startup complete")]
   static partial void LogStartupComplete(ILogger<PluginStartupService> logger);

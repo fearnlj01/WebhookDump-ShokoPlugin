@@ -45,16 +45,16 @@ public partial class ShokoService(
 
   public async Task DumpFile(IVideo video)
   {
-    LogAvdumpScheduled(logger, video.ID);
+    LogAvdumpScheduled(logger, video.LocalID);
     await anidbAvdumpService.ScheduleAvdumpVideos(video).ConfigureAwait(false);
   }
 
   public async Task RescanFile(IVideo video, int matchAttempts = 1)
   {
     // Assert that we're already/still tracking the file before we rescan it.
-    if (!await fileCachedData.IsFileTrackedAsync(video.ID).ConfigureAwait(false)) return;
+    if (!await fileCachedData.IsFileTrackedAsync(video.LocalID).ConfigureAwait(false)) return;
 
-    LogRescanningFile(logger, video.ID, matchAttempts);
+    LogRescanningFile(logger, video.LocalID, matchAttempts);
     await videoReleaseService.ScheduleFindReleaseForVideo(video, true).ConfigureAwait(false);
   }
 

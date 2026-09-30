@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Only for `dotnet ef`, which needs the Entity Framework Core assemblies the plugin leaves out of its output. Never
+    shipped. Add a migration, for every context, from the repository root with:
+
+      dotnet ef migrations add <Name> -p WebhookDump -s WebhookDump.Design -c WebhookDumpDbContext -o Persistence/Migrations/Sqlite
+      dotnet ef migrations add <Name> -p WebhookDump -s WebhookDump.Design -c MySqlWebhookDumpDbContext -o Persistence/Migrations/MySql
+      dotnet ef migrations add <Name> -p WebhookDump -s WebhookDump.Design -c SqlServerWebhookDumpDbContext -o Persistence/Migrations/SqlServer
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>true</ImplicitUsings>
+    <RootNamespace>Shoko.Plugin.WebhookDump.Design</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../WebhookDump/WebhookDump.csproj"/>
+    <PackageReference Include="Shoko.Abstractions" Version="6.0.0-alpha.95"/>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12"/>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.12"/>
+    <PackageReference Include="Microting.EntityFrameworkCore.MySql" Version="10.0.11"/>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12" PrivateAssets="All"/>
+  </ItemGroup>
+
+</Project>

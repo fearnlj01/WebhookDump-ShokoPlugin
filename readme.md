@@ -129,6 +129,20 @@ used to be. All you have to do is:
 5. Whilst some things can be changed dynamically... The plugin would very much appreciate you if you were to restart
 the server after making any changes.
 
+## Plugin data
+
+The plugin keeps track of the files it has seen, and of the Discord messages it has sent for them, in a database the
+server looks after for it. By default this is a SQLite file in the server's `data/<plugin-id>/` folder
+(`WebhookDump.db3`). When the server itself runs on MySQL/MariaDB or SQL Server, the plugin's table lives in the
+server's own database instead. The server applies the plugin's migrations while it starts, and includes the database in
+its backups.
+
+Older versions kept their own `WebhookDump.db` file in the plugin's configuration folder (or at the
+`Alternative Plugin Database Path`, if set). On the first start after upgrading, the plugin copies its entries into the
+new database, as long as the new database is still empty, and renames the old file to `WebhookDump.db.migrated`. The
+renamed file is not read again and can be deleted once you are happy with the upgrade. An old file that is not a
+SQLite database or is corrupt is renamed to `WebhookDump.db.unreadable` instead, without carrying anything over.
+
 # Build instructions
 
 1. Clone this repository and ensure that at least v10.0 of the .NET Core SDK is installed
@@ -140,3 +154,17 @@ dotnet build -c Release
 ```
 
 3. `WebhookDump.dll` should've been built and be ready to copy from the `bin/Release/net10.0/` folder.
+
+## Database migrations
+
+The database has migrations for SQLite, MySQL and SQL Server, one context each. After changing the model, add a
+migration for all three with the design-time project (`WebhookDump.Design`, never shipped), from the repository root:
+
+```sh
+dotnet tool install --global dotnet-ef --version 10.0.12
+dotnet ef migrations add <Name> -p WebhookDump -s WebhookDump.Design -c WebhookDumpDbContext -o Persistence/Migrations/Sqlite
+dotnet ef migrations add <Name> -p WebhookDump -s WebhookDump.Design -c MySqlWebhookDumpDbContext -o Persistence/Migrations/MySql
+dotnet ef migrations add <Name> -p WebhookDump -s WebhookDump.Design -c SqlServerWebhookDumpDbContext -o Persistence/Migrations/SqlServer
+```
+
+The tests (`dotnet test`) run the queries and the carry-over of the old database against SQLite.

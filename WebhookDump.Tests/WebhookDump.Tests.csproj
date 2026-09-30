@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>true</ImplicitUsings>
+    <RootNamespace>Shoko.Plugin.WebhookDump.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../WebhookDump/WebhookDump.csproj"/>
+    <PackageReference Include="Shoko.Abstractions" Version="6.0.0-alpha.95"/>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12"/>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1"/>
+    <PackageReference Include="xunit.v3" Version="3.2.2"/>
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" PrivateAssets="All"/>
+  </ItemGroup>
+
+</Project>

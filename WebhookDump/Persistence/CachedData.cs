@@ -1,57 +1,49 @@
-﻿using System.Data.Common;
-using Microsoft.Data.Sqlite;
+using System.Data.Common;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Shoko.Plugin.WebhookDump.Discord.Models;
-using Shoko.Plugin.WebhookDump.Extensions;
 
 namespace Shoko.Plugin.WebhookDump.Persistence;
 
-public partial class CachedData : ICachedData
+public sealed partial class CachedData(IDbContextFactory<WebhookDumpDbContext> contextFactory, ILogger<CachedData> logger)
+  : ICachedData, IDisposable
 {
   private const int MaxChunkSize = 500;
-  private readonly string _connectionString;
-  private readonly ILogger<CachedData> _logger;
 
-  public CachedData(string dbPath, ILogger<CachedData> logger)
-  {
-    _logger = logger;
-    _connectionString = new SqliteConnectionStringBuilder
-    {
-      DataSource = dbPath,
-      Mode = SqliteOpenMode.ReadWriteCreate
-    }.ToString();
-
-    InitializeDatabase();
-    LogDatabaseReady(_logger);
-  }
+  // Serializes the insert-or-update writes, so two of them for the same video can't both try to insert it.
+  private readonly SemaphoreSlim _writeLock = new(1, 1);
 
   public async Task SaveMessageStateAsync(int videoId, MinimalMessageState messageState)
   {
     ArgumentOutOfRangeException.ThrowIfNegativeOrZero(videoId);
+    ArgumentNullException.ThrowIfNull(messageState);
 
-    await using var connection = new SqliteConnection(_connectionString);
-    await connection.OpenAsync().ConfigureAwait(false);
-
-    await using var command = connection.CreateCommand();
-    command.CommandText =
-      """
-      INSERT INTO WebhookDumpEntries (VideoFileId, DiscordMessageId, InsertionTimestamp)
-      VALUES ($videoId, $discordMessageId, $timestamp)
-      ON CONFLICT(VideoFileId) DO UPDATE SET
-        DiscordMessageId = excluded.DiscordMessageId;
-      """;
-    command.Parameters.AddWithValue("$videoId", videoId);
-    command.Parameters.AddWithValue("$discordMessageId", messageState.Id);
-    command.Parameters.AddWithValue("$timestamp", messageState.EarliestKnownDate.ToString("O"));
-
+    await _writeLock.WaitAsync().ConfigureAwait(false);
     try
     {
-      if (await command.ExecuteNonQueryAsync().ConfigureAwait(false) > 0)
-        LogUpdatedMessageState(_logger, videoId, messageState.Id);
+      await using var context = await contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+
+      var entry = await context.Entries.FindAsync(videoId).ConfigureAwait(false);
+      if (entry is null)
+        context.Entries.Add(new WebhookDumpEntry
+        {
+          VideoFileId = videoId,
+          DiscordMessageId = (long)messageState.Id,
+          InsertionTimestamp = messageState.EarliestKnownDate.UtcDateTime
+        });
+      else
+        entry.DiscordMessageId = (long)messageState.Id;
+
+      if (await context.SaveChangesAsync().ConfigureAwait(false) > 0)
+        LogUpdatedMessageState(logger, videoId, messageState.Id);
     }
-    catch (DbException ex)
+    catch (Exception ex) when (ex is DbException or DbUpdateException)
     {
-      LogFailedToUpdatedMessageState(_logger, ex, videoId, messageState.Id);
+      LogFailedToUpdatedMessageState(logger, ex, videoId, messageState.Id);
+    }
+    finally
+    {
+      _writeLock.Release();
     }
   }
 
@@ -59,106 +51,74 @@ public partial class CachedData : ICachedData
   {
     ArgumentOutOfRangeException.ThrowIfNegativeOrZero(videoId);
 
-    await using var connection = new SqliteConnection(_connectionString);
-    await connection.OpenAsync().ConfigureAwait(false);
-
-    await using var command = connection.CreateCommand();
-    command.CommandText =
-      "SELECT DiscordMessageId, InsertionTimestamp FROM WebhookDumpEntries WHERE VideoFileId = $videoId;";
-    command.Parameters.AddWithValue("$videoId", videoId);
-
-    await using var reader = await command.ExecuteReaderAsync().ConfigureAwait(false);
     try
     {
-      if (!await reader.ReadAsync().ConfigureAwait(false)) return null;
-      if (await reader.IsDBNullAsync(0).ConfigureAwait(false)) return null;
+      await using var context = await contextFactory.CreateDbContextAsync().ConfigureAwait(false);
 
-      var messageIdSigned = reader.GetInt64(0);
-      if (messageIdSigned <= 0) return null;
+      var entry = await context.Entries
+        .AsNoTracking()
+        .FirstOrDefaultAsync(e => e.VideoFileId == videoId)
+        .ConfigureAwait(false);
 
-      _ = reader.TryGetDateTimeOffset(1, out var insertionTimestamp);
-
-      return new MinimalMessageState
-      {
-        Id = (ulong)messageIdSigned,
-        EarliestKnownDate = insertionTimestamp,
-        Reactions = []
-      };
+      return entry is { DiscordMessageId: > 0 } ? ToMessageState(entry) : null;
     }
     catch (DbException ex)
     {
-      LogFailedToRetrieveMessageState(_logger, ex, videoId);
+      LogFailedToRetrieveMessageState(logger, ex, videoId);
       return null;
     }
   }
 
   public async Task<IReadOnlyList<(int videoId, MinimalMessageState messageState)>> GetAllMessagesAsync()
   {
-    await using var connection = new SqliteConnection(_connectionString);
-    await connection.OpenAsync().ConfigureAwait(false);
-
-    await using var command = connection.CreateCommand();
-    command.CommandText =
-      """
-      SELECT VideoFileId, DiscordMessageId, InsertionTimestamp
-      FROM WebhookDumpEntries
-      WHERE DiscordMessageId IS NOT NULL;
-      """;
-
-    var messages = new List<(int, MinimalMessageState)>();
-
-    var reader = await command.ExecuteReaderAsync().ConfigureAwait(false);
     try
     {
-      while (await reader.ReadAsync().ConfigureAwait(false))
-      {
-        var videoId = reader.GetInt32(0);
+      await using var context = await contextFactory.CreateDbContextAsync().ConfigureAwait(false);
 
-        var messageIdSigned = reader.GetInt64(1);
-        if (messageIdSigned <= 0) continue;
+      var entries = await context.Entries
+        .AsNoTracking()
+        .Where(e => e.DiscordMessageId > 0)
+        .ToListAsync()
+        .ConfigureAwait(false);
 
-        _ = reader.TryGetDateTimeOffset(2, out var insertionTimestamp);
-
-        messages.Add((videoId, new MinimalMessageState
-        {
-          Id = (ulong)messageIdSigned,
-          EarliestKnownDate = insertionTimestamp,
-          Reactions = []
-        }));
-      }
+      return entries.Select(e => (e.VideoFileId, ToMessageState(e))).ToList();
     }
     catch (DbException ex)
     {
-      LogFailedToRetrieveMessages(_logger, ex);
+      LogFailedToRetrieveMessages(logger, ex);
+      return [];
     }
-
-    return messages;
   }
 
   public async Task SaveTrackedFileAsync(int fileId)
   {
     ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fileId);
 
-    await using var connection = new SqliteConnection(_connectionString);
-    await connection.OpenAsync().ConfigureAwait(false);
-
-    await using var command = connection.CreateCommand();
-    command.CommandText =
-      """
-      INSERT OR IGNORE INTO WebhookDumpEntries (VideoFileId, DiscordMessageId, InsertionTimestamp)
-      VALUES ($fileId, NULL, $timestamp)
-      """;
-    command.Parameters.AddWithValue("$fileId", fileId);
-    command.Parameters.AddWithValue("$timestamp", DateTimeOffset.UtcNow.ToString("O"));
-
+    await _writeLock.WaitAsync().ConfigureAwait(false);
     try
     {
-      if (await command.ExecuteNonQueryAsync().ConfigureAwait(false) > 0)
-        LogTrackedFile(_logger, fileId);
+      await using var context = await contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+
+      if (await context.Entries.AnyAsync(e => e.VideoFileId == fileId).ConfigureAwait(false))
+        return;
+
+      context.Entries.Add(new WebhookDumpEntry
+      {
+        VideoFileId = fileId,
+        DiscordMessageId = null,
+        InsertionTimestamp = DateTime.UtcNow
+      });
+
+      if (await context.SaveChangesAsync().ConfigureAwait(false) > 0)
+        LogTrackedFile(logger, fileId);
     }
-    catch (DbException ex)
+    catch (Exception ex) when (ex is DbException or DbUpdateException)
     {
-      LogFailedToTrackFile(_logger, ex, fileId);
+      LogFailedToTrackFile(logger, ex, fileId);
+    }
+    finally
+    {
+      _writeLock.Release();
     }
   }
 
@@ -166,24 +126,17 @@ public partial class CachedData : ICachedData
   {
     ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fileId);
 
-    await using var connection = new SqliteConnection(_connectionString);
-    await connection.OpenAsync().ConfigureAwait(false);
-
-    await using var command = connection.CreateCommand();
-    command.CommandText = "SELECT EXISTS(SELECT 1 FROM WebhookDumpEntries WHERE VideoFileId = $fileId)";
-    command.Parameters.AddWithValue("$fileId", fileId);
-
-    long? result = null;
     try
     {
-      result = (long?)await command.ExecuteScalarAsync().ConfigureAwait(false);
+      await using var context = await contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+
+      return await context.Entries.AnyAsync(e => e.VideoFileId == fileId).ConfigureAwait(false);
     }
     catch (DbException ex)
     {
-      LogFailedToCheckFileTracked(_logger, ex, fileId);
+      LogFailedToCheckFileTracked(logger, ex, fileId);
+      return false;
     }
-
-    return result.GetValueOrDefault() != 0;
   }
 
   public async Task<IReadOnlySet<int>> GetTrackedFileIdsAsync(IEnumerable<int> fileIds)
@@ -193,27 +146,23 @@ public partial class CachedData : ICachedData
 
     var trackedIds = new HashSet<int>();
 
-    await using var connection = new SqliteConnection(_connectionString);
-    await connection.OpenAsync().ConfigureAwait(false);
+    await using var context = await contextFactory.CreateDbContextAsync().ConfigureAwait(false);
 
-    for (var offset = 0; offset < ids.Length; offset += MaxChunkSize)
+    foreach (var chunk in ids.Chunk(MaxChunkSize))
     {
-      var chunk = ids.AsSpan(offset, Math.Min(MaxChunkSize, ids.Length - offset));
-
-      await using var command = connection.CreateCommand();
-
-      var parameterList = command.AddIntParameterList("$id", chunk);
-      command.CommandText = $"SELECT VideoFileId FROM WebhookDumpEntries WHERE VideoFileId IN ({parameterList})";
-
-      await using var reader = await command.ExecuteReaderAsync().ConfigureAwait(false);
       try
       {
-        while (await reader.ReadAsync().ConfigureAwait(false))
-          trackedIds.Add(reader.GetInt32(0));
+        var found = await context.Entries
+          .Where(e => chunk.Contains(e.VideoFileId))
+          .Select(e => e.VideoFileId)
+          .ToListAsync()
+          .ConfigureAwait(false);
+
+        trackedIds.UnionWith(found);
       }
       catch (DbException ex)
       {
-        LogFailedToRetrieveTrackedFileIds(_logger, ex);
+        LogFailedToRetrieveTrackedFileIds(logger, ex);
       }
     }
 
@@ -222,41 +171,31 @@ public partial class CachedData : ICachedData
 
   public async Task DeleteEntryAsync(int videoId)
   {
-    await using var connection = new SqliteConnection(_connectionString);
-    await connection.OpenAsync().ConfigureAwait(false);
-
-    await using var command = connection.CreateCommand();
-    command.CommandText = "DELETE FROM WebhookDumpEntries WHERE VideoFileId = $videoId";
-    command.Parameters.AddWithValue("$videoId", videoId);
-
     try
     {
-      await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+      await using var context = await contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+
+      await context.Entries.Where(e => e.VideoFileId == videoId).ExecuteDeleteAsync().ConfigureAwait(false);
     }
     catch (DbException ex)
     {
-      LogFailedToDeleteEntry(_logger, ex, videoId);
+      LogFailedToDeleteEntry(logger, ex, videoId);
     }
   }
 
   public async Task CleanupOldEntriesAsync(TimeSpan retentionPeriod)
   {
-    var cutoff = DateTimeOffset.UtcNow.Subtract(retentionPeriod).ToString("O");
-
-    await using var connection = new SqliteConnection(_connectionString);
-    await connection.OpenAsync().ConfigureAwait(false);
-
-    await using var command = connection.CreateCommand();
-    command.CommandText = "DELETE FROM WebhookDumpEntries WHERE InsertionTimestamp < $cutoff;";
-    command.Parameters.AddWithValue("$cutoff", cutoff);
+    var cutoff = DateTime.UtcNow.Subtract(retentionPeriod);
 
     try
     {
-      await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+      await using var context = await contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+
+      await context.Entries.Where(e => e.InsertionTimestamp < cutoff).ExecuteDeleteAsync().ConfigureAwait(false);
     }
     catch (DbException ex)
     {
-      LogFailedToCleanupOldEntries(_logger, ex);
+      LogFailedToCleanupOldEntries(logger, ex);
     }
   }
 
@@ -265,52 +204,34 @@ public partial class CachedData : ICachedData
     var ids = videoIds.Distinct().ToArray();
     if (ids.Length == 0) return;
 
-    await using var connection = new SqliteConnection(_connectionString);
-    await connection.OpenAsync().ConfigureAwait(false);
+    await using var context = await contextFactory.CreateDbContextAsync().ConfigureAwait(false);
 
-    for (var offset = 0; offset < ids.Length; offset += MaxChunkSize)
+    foreach (var chunk in ids.Chunk(MaxChunkSize))
     {
-      var chunk = ids.AsSpan(offset, Math.Min(MaxChunkSize, ids.Length - offset));
-
-      await using var command = connection.CreateCommand();
-
-      var parameterList = command.AddIntParameterList("$id", chunk);
-      command.CommandText = $"DELETE FROM WebhookDumpEntries WHERE VideoFileId IN ({parameterList})";
-
       try
       {
-        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+        await context.Entries.Where(e => chunk.Contains(e.VideoFileId)).ExecuteDeleteAsync().ConfigureAwait(false);
       }
       catch (DbException ex)
       {
-        LogFailedToDeleteEntries(_logger, ex);
+        LogFailedToDeleteEntries(logger, ex);
       }
     }
   }
 
-  private void InitializeDatabase()
+  public void Dispose()
   {
-    using var connection = new SqliteConnection(_connectionString);
-    connection.Open();
+    _writeLock.Dispose();
+  }
 
-    using (var walCommand = connection.CreateCommand())
+  private static MinimalMessageState ToMessageState(WebhookDumpEntry entry)
+  {
+    return new MinimalMessageState
     {
-      walCommand.CommandText = "PRAGMA journal_mode=WAL;";
-      walCommand.ExecuteNonQuery();
-    }
-
-    using var command = connection.CreateCommand();
-    command.CommandText =
-      """
-      CREATE TABLE IF NOT EXISTS WebhookDumpEntries (
-        VideoFileId INTEGER PRIMARY KEY,
-        DiscordMessageId INTEGER NULL,
-        InsertionTimestamp TEXT NOT NULL
-      );
-
-      CREATE INDEX IF NOT EXISTS IX_WebhookDumpEntries_InsertionTimestamp ON WebhookDumpEntries(InsertionTimestamp);
-      """;
-    if (command.ExecuteNonQuery() > 0) LogDatabaseInit(_logger);
+      Id = (ulong)entry.DiscordMessageId.GetValueOrDefault(),
+      EarliestKnownDate = new DateTimeOffset(entry.InsertionTimestamp, TimeSpan.Zero),
+      Reactions = []
+    };
   }
 
   #region LoggerMessages
@@ -348,12 +269,6 @@ public partial class CachedData : ICachedData
 
   [LoggerMessage(LogLevel.Error, "Failed to delete entries for videos")]
   static partial void LogFailedToDeleteEntries(ILogger<CachedData> logger, Exception ex);
-
-  [LoggerMessage(LogLevel.Information, "Plugin database initialized successfully")]
-  static partial void LogDatabaseInit(ILogger<CachedData> logger);
-
-  [LoggerMessage(LogLevel.Information, "Plugin database ready")]
-  static partial void LogDatabaseReady(ILogger<CachedData> logger);
 
   #endregion
 }
